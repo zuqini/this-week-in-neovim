@@ -1,0 +1,95 @@
+---
+issue: 1
+title: "This Week in Neovim #1 — The launch issue"
+date: 2026-05-04
+summary: "TWiN is back. A weekly, citation-first roundup of new and updated Neovim plugins, ecosystem news, and notable community posts — with every claim sourced."
+sources:
+  - id: s1
+    url: https://neovim.io
+    title: "neovim.io — the Neovim project home page"
+  - id: s2
+    url: https://github.com/neovim/neovim
+    title: "neovim/neovim on GitHub"
+  - id: s3
+    url: https://dotfyle.com/this-week-in-neovim
+    title: "Original This Week in Neovim archive on dotfyle.com"
+  - id: s4
+    url: https://github.com/codicocodes/dotfyle
+    title: "codicocodes/dotfyle — current upstream of the dotfyle codebase"
+  - id: s5
+    url: https://github.com/codicocodes/dotfyle/discussions/194
+    title: "Heads-up posted to upstream maintainer about reviving TWiN"
+  - id: s6
+    url: https://github.com/rockerBOO/awesome-neovim
+    title: "awesome-neovim — curated list used as a source of new plugin entries"
+---
+
+Welcome back. *This Week in Neovim* — TWiN — is a weekly roundup of what
+shipped, what changed, and what's worth reading in the Neovim ecosystem.
+The original ran on [dotfyle.com][^s3] and has been dormant for a while; this
+is a community-run revival with a slightly different mandate underneath.
+
+This first issue is shorter than what regular issues will look like, because
+the scraping pipeline turns on next Monday. What you're reading is the format,
+not the contents.
+
+## How TWiN works now
+
+- Every Saturday, an automated pipeline scrapes a curated set of public
+  sources — RSS feeds, the GitHub Search API, awesome-neovim diffs[^s6], and a
+  small set of community channels.
+- An LLM drafts the issue *only* from the scraped material it was handed, with
+  one strict rule: every bullet must end with a `[^sN]`-style citation
+  pointing at a fetched source. No source, no bullet.
+- Two evals run before a human ever sees the draft — a programmatic check that
+  every citation resolves and every URL returns 200, and an LLM-as-judge
+  faithfulness pass that flags bullets where the cited source doesn't actually
+  support the claim.
+- A human reviews the resulting pull request, fixes anything the eval missed,
+  and merges on Sunday. The `git log` is the editorial trail.
+
+The whole thing is open source. If you spot a bullet that doesn't follow from
+its citation, the fix is a one-line edit and a PR.
+
+## Neovim core
+
+Regular reporting on [neovim/neovim][^s2] starts in Issue #2. The plan is to
+cover tagged releases, accepted RFCs, and notable merges, each linked to its
+PR or commit so you can verify the change yourself. Project home and
+download links live at [neovim.io][^s1].
+
+## New plugins
+
+*Starts in Issue #2.* New plugin entries will be drawn from the
+[awesome-neovim][^s6] additions over the past seven days plus repositories on
+GitHub tagged `neovim-plugin` with notable activity. Every entry will link to
+the repository and credit the author.
+
+## Updated plugins
+
+*Starts in Issue #2.* Updated plugin entries will be sourced from plugin
+author release feeds and tagged GitHub releases.
+
+## Notable posts & videos
+
+- The full back catalogue of the original TWiN remains accessible on
+  dotfyle — every prior issue is preserved there and is the best single
+  source for the project's history.[^s3]
+
+## Community
+
+- A heads-up about reviving the *This Week in Neovim* name has been posted
+  to the upstream maintainer of the dotfyle codebase. The conversation is
+  open if you'd like to weigh in.[^s5]
+- The site, the scraping pipeline, and every issue's source PR live at
+  [codicocodes/dotfyle][^s4] (upstream) and the TWiN repository linked in
+  the footer.
+
+See you Monday.
+
+[^s1]: [neovim.io](https://neovim.io) — the Neovim project home page.
+[^s2]: [neovim/neovim on GitHub](https://github.com/neovim/neovim) — Neovim's main repository.
+[^s3]: [Original TWiN archive on dotfyle.com](https://dotfyle.com/this-week-in-neovim).
+[^s4]: [codicocodes/dotfyle](https://github.com/codicocodes/dotfyle) — current upstream of the dotfyle codebase.
+[^s5]: [Heads-up posted to upstream maintainer about reviving TWiN](https://github.com/codicocodes/dotfyle/discussions/194).
+[^s6]: [awesome-neovim](https://github.com/rockerBOO/awesome-neovim) — curated list used as a source of new plugin entries.
