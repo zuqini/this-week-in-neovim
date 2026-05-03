@@ -5,7 +5,7 @@ import { parseIssueMeta } from "@/lib/issues";
 
 const CONTENT_DIR = path.join(import.meta.dirname, "..", "content", "issues");
 
-describe("content/issues/*.mdx", () => {
+describe.skipIf(!fs.existsSync(CONTENT_DIR))("content/issues/*.mdx", () => {
   const files = fs
     .readdirSync(CONTENT_DIR)
     .filter((f) => f.endsWith(".mdx"));

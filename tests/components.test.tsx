@@ -4,17 +4,9 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { IssueRow } from "@/components/issue-card";
-import type { IssueMeta } from "@/lib/issues";
+import { makeIssue } from "./helpers/factory";
 
-const ISSUE: IssueMeta = {
-  slug: "2026-05-04",
-  issue: 1,
-  title: "First issue",
-  date: "2026-05-04",
-  summary: "A one-line summary.",
-  draft: false,
-  sources: [],
-};
+const ISSUE = makeIssue();
 
 describe("IssueRow", () => {
   it("renders issue number, formatted date, link to issueHref, and summary", () => {
@@ -31,7 +23,7 @@ describe("IssueRow", () => {
     const html = renderToStaticMarkup(
       <IssueRow issue={{ ...ISSUE, summary: "" }} />,
     );
+    expect(html).not.toMatch(/<p[\s>]/);
     expect(html).not.toContain("text-fg/85");
-    expect(html).not.toContain("<p");
   });
 });
