@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
-import { getIssueBySlug, getIssueSlugs, formatIssueDate } from "@/lib/issues";
+import { getIssueBySlug, getIssueSlugs } from "@/lib/issues";
+import { formatIssueDate } from "@/lib/date";
 import { SITE } from "@/lib/site";
 import { PALETTE } from "@/lib/theme";
 import { OG_FONTS, OG_SIZE, OgFrame, siteHost } from "@/lib/og";
