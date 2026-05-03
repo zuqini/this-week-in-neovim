@@ -4,8 +4,6 @@ import path from "node:path";
 import matter from "gray-matter";
 import { z } from "zod";
 
-export { formatIssueDate, issueDate } from "./date";
-
 // `import.meta.dirname` isn't substituted by webpack; use cwd. `next build`
 // is always invoked from the project root in this repo (no monorepo).
 const CONTENT_DIR = path.join(process.cwd(), "content", "issues");
@@ -20,10 +18,15 @@ const SourceSchema = z.object({
 const FrontmatterSchema = z.object({
   issue: z.number().int().positive(),
   title: z.string().min(1),
-  date: z.preprocess(
-    (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v),
-    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  ),
+  date: z.preprocess((v) => {
+    if (v instanceof Date) {
+      if (v.getUTCHours() !== 0 || v.getUTCMinutes() !== 0 || v.getUTCSeconds() !== 0 || v.getUTCMilliseconds() !== 0) {
+        return undefined;
+      }
+      return v.toISOString().slice(0, 10);
+    }
+    return v;
+  }, z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   summary: z.string().min(1),
   draft: z.boolean().optional().default(false),
   sources: z.array(SourceSchema).default([]),
@@ -44,11 +47,6 @@ export function parseIssueMeta(raw: string, slug: string): IssueMeta {
       `Invalid frontmatter in ${slug}.mdx: ${parsed.error.message}`,
     );
   }
-  if (parsed.data.title.length > 90) {
-    console.warn(
-      `Issue ${slug}: title is ${parsed.data.title.length} chars; OG card clamps to 3 lines.`,
-    );
-  }
   return { ...parsed.data, slug };
 }
 
@@ -60,19 +58,42 @@ export function loadIssuesFromDir(dir: string): IssueMeta[] {
     .map((f) => {
       const slug = f.replace(/\.mdx$/, "");
       const raw = fs.readFileSync(path.join(dir, f), "utf8");
-      return parseIssueMeta(raw, slug);
+      const meta = parseIssueMeta(raw, slug);
+      const slugDate = slug.slice(0, 10);
+      if (slugDate !== meta.date) {
+        throw new Error(
+          `Slug/date mismatch in ${slug}.mdx: filename starts with ${slugDate} but frontmatter date is ${meta.date}`,
+        );
+      }
+      return meta;
     })
     .filter((i) => !i.draft)
     .sort((a, b) => b.date.localeCompare(a.date) || b.issue - a.issue);
 }
 
-let _all: IssueMeta[] | null = null;
-
-export function getAllIssues(): IssueMeta[] {
-  if (process.env.NODE_ENV !== "production") return loadIssuesFromDir(CONTENT_DIR);
-  if (_all === null) _all = loadIssuesFromDir(CONTENT_DIR);
-  return _all;
+interface Memoized<T> {
+  (): T;
+  reset: () => void;
 }
+
+function memoize<T>(fn: () => T, opts: { when: () => boolean }): Memoized<T> {
+  let cached: T | null = null;
+  const memo = (() => {
+    if (!opts.when()) return fn();
+    if (cached === null) cached = fn();
+    return cached;
+  }) as Memoized<T>;
+  memo.reset = () => {
+    cached = null;
+  };
+  return memo;
+}
+
+export const getAllIssues = memoize(() => loadIssuesFromDir(CONTENT_DIR), {
+  when: () => process.env.NODE_ENV === "production",
+});
+
+export const __resetIssuesCacheForTests = getAllIssues.reset;
 
 export function getIssueSlugs(): string[] {
   return getAllIssues().map((i) => i.slug);
@@ -82,28 +103,25 @@ export function getIssueBySlug(slug: string): IssueMeta | null {
   return getAllIssues().find((i) => i.slug === slug) ?? null;
 }
 
-export function findAdjacent(
-  issues: IssueMeta[],
-  slug: string,
-): { older: IssueMeta | null; newer: IssueMeta | null } {
+export function getAdjacent(slug: string): {
+  newer: IssueMeta | null;
+  older: IssueMeta | null;
+} {
+  const issues = getAllIssues();
   const idx = issues.findIndex((i) => i.slug === slug);
-  if (idx === -1) return { older: null, newer: null };
+  if (idx === -1) return { newer: null, older: null };
   return {
     newer: idx > 0 ? issues[idx - 1] : null,
     older: idx < issues.length - 1 ? issues[idx + 1] : null,
   };
 }
 
-export function getAdjacent(slug: string): {
-  older: IssueMeta | null;
-  newer: IssueMeta | null;
-} {
-  return findAdjacent(getAllIssues(), slug);
-}
-
 export async function loadIssueBody(
   slug: string,
 ): Promise<React.ComponentType> {
+  if (!/^[\w-]+$/.test(slug)) {
+    throw new Error(`Invalid issue slug: ${slug}`);
+  }
   const mod = await import(`../content/issues/${slug}.mdx`);
   return mod.default;
 }

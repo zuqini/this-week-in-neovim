@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { formatIssueDate, type IssueMeta } from "@/lib/issues";
+import { type IssueMeta } from "@/lib/issues";
+import { formatIssueDate } from "@/lib/date";
 import { issueHref } from "@/lib/site";
 
 export function IssueRow({ issue }: { issue: IssueMeta }) {

@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  formatIssueDate,
   getAdjacent,
   getIssueBySlug,
   getIssueSlugs,
 } from "@/lib/issues";
+import { formatIssueDate } from "@/lib/date";
 import { IssueBody } from "@/components/issue-body";
 import { absoluteUrl, issueHref } from "@/lib/site";
 

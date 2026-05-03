@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getAllIssues, formatIssueDate } from "@/lib/issues";
+import { getAllIssues } from "@/lib/issues";
+import { formatIssueDate } from "@/lib/date";
 import { IssueRow } from "@/components/issue-card";
 import { IssueBody } from "@/components/issue-body";
 import { SITE, issueHref } from "@/lib/site";

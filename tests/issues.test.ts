@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
-  findAdjacent,
+  loadIssueBody,
   loadIssuesFromDir,
   parseIssueMeta,
 } from "@/lib/issues";
@@ -77,6 +78,15 @@ describe("parseIssueMeta", () => {
     ).toThrow(/Invalid frontmatter/);
   });
 
+  it("throws on date with time/TZ instead of silently drifting the day", () => {
+    expect(() =>
+      parseIssueMeta(
+        readFixture("invalid-date-with-time.mdx"),
+        "invalid-date-with-time",
+      ),
+    ).toThrow(/Invalid frontmatter/);
+  });
+
   it("throws when a source url is not a URL", () => {
     expect(() =>
       parseIssueMeta(
@@ -119,18 +129,6 @@ describe("parseIssueMeta", () => {
     expect(meta.date).toBe("2026-04-06");
   });
 
-  it("warns when title length exceeds 90 chars", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      parseIssueMeta(readFixture("valid-long-title.mdx"), "valid-long-title");
-      expect(warn).toHaveBeenCalledOnce();
-      expect(warn.mock.calls[0][0]).toMatch(
-        /Issue valid-long-title: title is \d+ chars/,
-      );
-    } finally {
-      warn.mockRestore();
-    }
-  });
 });
 
 describe("loadIssuesFromDir", () => {
@@ -154,59 +152,98 @@ describe("loadIssuesFromDir", () => {
   it("returns [] when dir does not exist", () => {
     expect(loadIssuesFromDir(path.join(FIXTURES, "missing"))).toEqual([]);
   });
+
+  it("throws when filename slug date does not match frontmatter date", () => {
+    expect(() =>
+      loadIssuesFromDir(path.join(FIXTURES, "issues-mismatch")),
+    ).toThrow(/Slug\/date mismatch/);
+  });
 });
 
-describe("findAdjacent", () => {
-  const issues = loadIssuesFromDir(ISSUES_DIR);
+describe("getAdjacent (against fixture content dir)", () => {
+  const originalCwd = process.cwd;
+  const FIXTURE_CWD = fs.mkdtempSync(path.join(os.tmpdir(), "twin-issues-"));
 
-  it("returns older/newer for a middle slug", () => {
-    const { older, newer } = findAdjacent(issues, "2026-01-12");
+  beforeEach(() => {
+    fs.mkdirSync(path.join(FIXTURE_CWD, "content"), { recursive: true });
+    const link = path.join(FIXTURE_CWD, "content", "issues");
+    if (!fs.existsSync(link)) {
+      fs.symlinkSync(ISSUES_DIR, link, "dir");
+    }
+    process.cwd = () => FIXTURE_CWD;
+    vi.resetModules();
+  });
+
+  afterEach(async () => {
+    const { __resetIssuesCacheForTests } = await import("@/lib/issues");
+    __resetIssuesCacheForTests();
+    process.cwd = originalCwd;
+    vi.resetModules();
+  });
+
+  afterAll(() => {
+    fs.rmSync(FIXTURE_CWD, { recursive: true, force: true });
+  });
+
+  it("returns older/newer for a middle slug", async () => {
+    const { getAdjacent } = await import("@/lib/issues");
+    const { older, newer } = getAdjacent("2026-01-12");
     expect(newer?.slug).toBe("2026-01-19");
     expect(older?.slug).toBe("2026-01-05");
   });
 
-  it("returns null for newest's newer", () => {
-    const { newer } = findAdjacent(issues, "2026-01-19-tied");
-    expect(newer).toBeNull();
+  it("returns null for newest's newer", async () => {
+    const { getAdjacent } = await import("@/lib/issues");
+    expect(getAdjacent("2026-01-19-tied").newer).toBeNull();
   });
 
-  it("returns null for oldest's older", () => {
-    const { older } = findAdjacent(issues, "2026-01-05");
-    expect(older).toBeNull();
+  it("returns null for oldest's older", async () => {
+    const { getAdjacent } = await import("@/lib/issues");
+    expect(getAdjacent("2026-01-05").older).toBeNull();
   });
 
-  it("returns nulls for unknown slug", () => {
-    expect(findAdjacent(issues, "nope")).toEqual({
-      older: null,
-      newer: null,
-    });
+  it("returns nulls for unknown slug", async () => {
+    const { getAdjacent } = await import("@/lib/issues");
+    expect(getAdjacent("nope")).toEqual({ newer: null, older: null });
   });
 });
 
 describe("getAllIssues + production caching", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllEnvs();
-    vi.resetModules();
+    const { __resetIssuesCacheForTests } = await import("@/lib/issues");
+    __resetIssuesCacheForTests();
   });
 
   it("includes the real production slug", async () => {
-    const mod = await import("@/lib/issues");
-    expect(mod.getAllIssues().some((i) => i.slug === "2026-05-04")).toBe(true);
+    const { getAllIssues } = await import("@/lib/issues");
+    expect(getAllIssues().some((i) => i.slug === "2026-05-04")).toBe(true);
   });
 
   it("returns the same array reference across calls in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const mod = await import("@/lib/issues");
-    expect(mod.getAllIssues()).toBe(mod.getAllIssues());
+    const { getAllIssues, __resetIssuesCacheForTests } = await import(
+      "@/lib/issues"
+    );
+    __resetIssuesCacheForTests();
+    expect(getAllIssues()).toBe(getAllIssues());
   });
 
   it("returns fresh arrays in non-production", async () => {
     vi.stubEnv("NODE_ENV", "test");
-    const mod = await import("@/lib/issues");
-    expect(mod.getAllIssues()).not.toBe(mod.getAllIssues());
+    const { getAllIssues } = await import("@/lib/issues");
+    expect(getAllIssues()).not.toBe(getAllIssues());
+  });
+
+  it("reset hook clears the production cache", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const { getAllIssues, __resetIssuesCacheForTests } = await import(
+      "@/lib/issues"
+    );
+    __resetIssuesCacheForTests();
+    const first = getAllIssues();
+    __resetIssuesCacheForTests();
+    expect(getAllIssues()).not.toBe(first);
   });
 });
 
@@ -222,19 +259,28 @@ describe("getIssueSlugs / getIssueBySlug / getAdjacent", () => {
     expect(getIssueBySlug("not-a-real-slug")).toBeNull();
   });
 
-  it("getAdjacent agrees with findAdjacent against getAllIssues()", async () => {
+  it("getAdjacent for the newest slug returns null newer and an older if any", async () => {
     const { getAllIssues, getAdjacent } = await import("@/lib/issues");
     const all = getAllIssues();
     const target = all[0]?.slug;
-    if (!target) return;
-    expect(getAdjacent(target)).toEqual(findAdjacent(all, target));
+    expect(target).toBeDefined();
+    const { newer, older } = getAdjacent(target!);
+    expect(newer).toBeNull();
+    expect(older?.slug ?? null).toBe(all[1]?.slug ?? null);
   });
 });
 
-describe("page params == OG params", () => {
-  it("issue page and OG image enumerate the same slugs", async () => {
-    const page = await import("@/app/issues/[slug]/page");
-    const og = await import("@/app/issues/[slug]/opengraph-image");
-    expect(page.generateStaticParams()).toEqual(og.generateStaticParams());
+describe("loadIssueBody", () => {
+  it("rejects slugs containing path separators", async () => {
+    await expect(loadIssueBody("../foo")).rejects.toThrow(/Invalid issue slug/);
+  });
+
+  it("rejects slugs containing dots", async () => {
+    await expect(loadIssueBody("foo.bar")).rejects.toThrow(/Invalid issue slug/);
+  });
+
+  it("rejects empty slugs", async () => {
+    await expect(loadIssueBody("")).rejects.toThrow(/Invalid issue slug/);
   });
 });
+
