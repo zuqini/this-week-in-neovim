@@ -1,5 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { makeIssue } from "./helpers/factory";
+import {
+  freshImport,
+  withMockedIssues,
+  withResetIssuesModule,
+} from "./helpers/mock-issues";
 
 vi.mock("@/components/issue-body", () => ({
   IssueBody: ({ issue }: { issue: { slug: string } }) => (
@@ -8,16 +14,11 @@ vi.mock("@/components/issue-body", () => ({
 }));
 
 describe("app/sitemap.ts", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-  afterEach(() => {
-    vi.doUnmock("@/lib/issues");
-    vi.resetModules();
-  });
+  withResetIssuesModule();
 
   it("emits home + archive + one entry per issue, with absolute URLs", async () => {
-    const { default: sitemap } = await import("@/app/sitemap");
+    const { default: sitemap } =
+      await freshImport<typeof import("@/app/sitemap")>("@/app/sitemap");
     const { getAllIssues } = await import("@/lib/issues");
     const issues = getAllIssues();
     const entries = sitemap();
@@ -50,13 +51,9 @@ describe("app/sitemap.ts", () => {
   });
 
   it("falls back to 2026-05-01 and emits only the static rows when no issues exist", async () => {
-    vi.doMock("@/lib/issues", async () => {
-      const real = await vi.importActual<typeof import("@/lib/issues")>(
-        "@/lib/issues",
-      );
-      return { ...real, getAllIssues: () => [] };
-    });
-    const { default: sitemap } = await import("@/app/sitemap");
+    withMockedIssues([]);
+    const { default: sitemap } =
+      await freshImport<typeof import("@/app/sitemap")>("@/app/sitemap");
     const entries = sitemap();
     expect(entries.length).toBe(2);
     expect((entries[0].lastModified as Date).toISOString()).toBe(
@@ -95,9 +92,7 @@ describe("app/feed.xml/route.ts", () => {
 });
 
 describe("app/issues/[slug]/page.tsx", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
+  withResetIssuesModule();
 
   it("generateStaticParams returns one {slug} per real issue", async () => {
     const page = await import("@/app/issues/[slug]/page");
@@ -154,16 +149,13 @@ describe("app/issues/[slug]/page.tsx", () => {
 });
 
 describe("app/issues/page.tsx", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-  afterEach(() => {
-    vi.doUnmock("@/lib/issues");
-    vi.resetModules();
-  });
+  withResetIssuesModule();
 
   it("renders an <h2> per year and an <li> per issue", async () => {
-    const { default: ArchivePage } = await import("@/app/issues/page");
+    const { default: ArchivePage } =
+      await freshImport<typeof import("@/app/issues/page")>(
+        "@/app/issues/page",
+      );
     const { getAllIssues } = await import("@/lib/issues");
     const issues = getAllIssues();
     const html = renderToStaticMarkup(ArchivePage());
@@ -176,35 +168,23 @@ describe("app/issues/page.tsx", () => {
   });
 
   it("renders the empty-state copy when no issues exist", async () => {
-    vi.doMock("@/lib/issues", async () => {
-      const real = await vi.importActual<typeof import("@/lib/issues")>(
-        "@/lib/issues",
+    withMockedIssues([]);
+    const { default: ArchivePage } =
+      await freshImport<typeof import("@/app/issues/page")>(
+        "@/app/issues/page",
       );
-      return { ...real, getAllIssues: () => [] };
-    });
-    const { default: ArchivePage } = await import("@/app/issues/page");
     const html = renderToStaticMarkup(ArchivePage());
     expect(html).toContain("No issues yet.");
   });
 });
 
 describe("app/page.tsx", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-  afterEach(() => {
-    vi.doUnmock("@/lib/issues");
-    vi.resetModules();
-  });
+  withResetIssuesModule();
 
   it("renders the empty-state copy when no issues exist", async () => {
-    vi.doMock("@/lib/issues", async () => {
-      const real = await vi.importActual<typeof import("@/lib/issues")>(
-        "@/lib/issues",
-      );
-      return { ...real, getAllIssues: () => [] };
-    });
-    const { default: HomePage } = await import("@/app/page");
+    withMockedIssues([]);
+    const { default: HomePage } =
+      await freshImport<typeof import("@/app/page")>("@/app/page");
     const tree = await HomePage();
     const html = renderToStaticMarkup(tree);
     expect(html).toContain("first issue is on the way");
@@ -212,24 +192,17 @@ describe("app/page.tsx", () => {
   });
 
   it("renders the latest title in an <h1>; omits Earlier section with one issue", async () => {
-    vi.doMock("@/lib/issues", async () => {
-      const real = await vi.importActual<typeof import("@/lib/issues")>(
-        "@/lib/issues",
-      );
-      const onlyOne: ReturnType<typeof real.getAllIssues> = [
-        {
-          slug: "2026-05-04",
-          issue: 1,
-          title: "Sole issue",
-          date: "2026-05-04",
-          summary: "Just one.",
-          draft: false,
-          sources: [],
-        },
-      ];
-      return { ...real, getAllIssues: () => onlyOne };
-    });
-    const { default: HomePage } = await import("@/app/page");
+    withMockedIssues([
+      makeIssue({
+        slug: "2026-05-04",
+        issue: 1,
+        title: "Sole issue",
+        date: "2026-05-04",
+        summary: "Just one.",
+      }),
+    ]);
+    const { default: HomePage } =
+      await freshImport<typeof import("@/app/page")>("@/app/page");
     const tree = await HomePage();
     const html = renderToStaticMarkup(tree);
     expect(html).toContain('id="latest-heading"');
@@ -238,33 +211,24 @@ describe("app/page.tsx", () => {
   });
 
   it("renders the Earlier issues section when there is more than one issue", async () => {
-    vi.doMock("@/lib/issues", async () => {
-      const real = await vi.importActual<typeof import("@/lib/issues")>(
-        "@/lib/issues",
-      );
-      const many: ReturnType<typeof real.getAllIssues> = [
-        {
-          slug: "2026-05-11",
-          issue: 2,
-          title: "Latest",
-          date: "2026-05-11",
-          summary: "Latest summary.",
-          draft: false,
-          sources: [],
-        },
-        {
-          slug: "2026-05-04",
-          issue: 1,
-          title: "Earlier one",
-          date: "2026-05-04",
-          summary: "Earlier summary.",
-          draft: false,
-          sources: [],
-        },
-      ];
-      return { ...real, getAllIssues: () => many };
-    });
-    const { default: HomePage } = await import("@/app/page");
+    withMockedIssues([
+      makeIssue({
+        slug: "2026-05-11",
+        issue: 2,
+        title: "Latest",
+        date: "2026-05-11",
+        summary: "Latest summary.",
+      }),
+      makeIssue({
+        slug: "2026-05-04",
+        issue: 1,
+        title: "Earlier one",
+        date: "2026-05-04",
+        summary: "Earlier summary.",
+      }),
+    ]);
+    const { default: HomePage } =
+      await freshImport<typeof import("@/app/page")>("@/app/page");
     const tree = await HomePage();
     const html = renderToStaticMarkup(tree);
     expect(html).toContain("Earlier issues");
