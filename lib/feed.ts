@@ -10,12 +10,18 @@ const XML_ESCAPES: Record<string, string> = {
   '"': "&quot;",
 };
 
-const ILLEGAL_XML_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F]/g;
+const ESCAPE_PATTERN =
+  /[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]|[￾￿]|[\x00-\x08\x0B\x0C\x0E-\x1F]|[<>&'"]/g;
 
-export function escapeXml(input: string): string {
-  return input
-    .replace(ILLEGAL_XML_CHARS, "")
-    .replace(/[<>&'"]/g, (c) => XML_ESCAPES[c] ?? c);
+function escapeXml(input: string): string {
+  return input.replace(ESCAPE_PATTERN, (match) => {
+    if (match.length === 2) return match;
+    const code = match.charCodeAt(0);
+    if (code >= 0xd800 && code <= 0xdfff) return "�";
+    if (code === 0xfffe || code === 0xffff) return "";
+    if (code < 0x20) return "";
+    return XML_ESCAPES[match] ?? match;
+  });
 }
 
 export function buildRssXml(issues: IssueMeta[]): string {

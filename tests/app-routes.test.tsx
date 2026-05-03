@@ -84,6 +84,14 @@ describe("app/feed.xml/route.ts", () => {
     expect(res).toBeInstanceOf(Response);
     expect(await res.text()).toBe(buildRssXml(getAllIssues()));
   });
+
+  it("sets Content-Type to application/rss+xml; charset=utf-8", async () => {
+    const { GET } = await import("@/app/feed.xml/route");
+    const res = GET();
+    expect(res.headers.get("Content-Type")).toBe(
+      "application/rss+xml; charset=utf-8",
+    );
+  });
 });
 
 describe("app/issues/[slug]/page.tsx", () => {

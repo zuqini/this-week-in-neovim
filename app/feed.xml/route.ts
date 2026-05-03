@@ -4,6 +4,9 @@ import { buildRssXml } from "@/lib/feed";
 export const dynamic = "force-static";
 
 export function GET() {
-  // Headers are configured in public/_headers (Cloudflare Pages serves the static export).
-  return new Response(buildRssXml(getAllIssues()));
+  return new Response(buildRssXml(getAllIssues()), {
+    headers: {
+      "Content-Type": "application/rss+xml; charset=utf-8",
+    },
+  });
 }
