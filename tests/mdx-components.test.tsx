@@ -75,4 +75,12 @@ describe("useMDXComponents", () => {
     expect(components.p).toBe(Custom);
     expect((components.a as { name?: string }).name).toBe("MdxAnchor");
   });
+
+  it("lets a caller-supplied 'a' override MdxAnchor", () => {
+    const CustomAnchor: AnchorComponent = ({ children }) => (
+      <a data-custom="yes">{children}</a>
+    );
+    const components = useMDXComponents({ a: CustomAnchor });
+    expect(components.a).toBe(CustomAnchor);
+  });
 });

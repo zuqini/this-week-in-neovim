@@ -1,14 +1,12 @@
 import type { MDXComponents } from "mdx/types";
 import type { AnchorHTMLAttributes } from "react";
-import { SITE } from "@/lib/site";
-
-const SITE_HOST = new URL(SITE.url).host;
+import { siteHost } from "@/lib/site";
 
 function isExternal(href: string | undefined): boolean {
   if (!href) return false;
   if (!/^https?:\/\//i.test(href)) return false;
   try {
-    return new URL(href).host !== SITE_HOST;
+    return new URL(href).host !== siteHost();
   } catch {
     return false;
   }
@@ -34,5 +32,5 @@ function MdxAnchor({
 }
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
-  return { ...components, a: MdxAnchor };
+  return { a: MdxAnchor, ...components };
 }

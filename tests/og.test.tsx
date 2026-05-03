@@ -1,59 +1,73 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-describe("siteHost", () => {
+describe("OgIssueCard", () => {
+  it("renders the :TWiN brand mark, issue meta, title, and host footer", async () => {
+    const { OgIssueCard } = await import("@/lib/og");
+    const html = renderToStaticMarkup(
+      <OgIssueCard
+        title="Some issue title"
+        issueNumber={42}
+        date="May 4, 2026"
+      />,
+    );
+    expect(html).toContain(":TWiN");
+    expect(html).toContain("Issue #42");
+    expect(html).toContain("May 4, 2026");
+    expect(html).toContain("Some issue title");
+    expect(html).toContain("thisweekinneovim.org");
+  });
+});
+
+describe("OgHomeCard", () => {
+  it("renders the :TWiN brand mark, host, title, description, and subtitle", async () => {
+    const { OgHomeCard } = await import("@/lib/og");
+    const html = renderToStaticMarkup(
+      <OgHomeCard
+        title="Site title"
+        description="Site description"
+        subtitle="Footer subtitle"
+      />,
+    );
+    expect(html).toContain(":TWiN");
+    expect(html).toContain("thisweekinneovim.org");
+    expect(html).toContain("Site title");
+    expect(html).toContain("Site description");
+    expect(html).toContain("Footer subtitle");
+  });
+});
+
+describe("getOgFonts", () => {
   beforeEach(() => {
     vi.resetModules();
   });
   afterEach(() => {
-    vi.unstubAllEnvs();
     vi.resetModules();
   });
 
-  it("strips https:// from the default SITE.url", async () => {
-    const { siteHost } = await import("@/lib/og");
-    expect(siteHost()).toBe("thisweekinneovim.org");
+  it("does not read fonts from disk on module import", async () => {
+    const fs = await import("node:fs");
+    const spy = vi.spyOn(fs.default, "readFileSync");
+    await import("@/lib/og");
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
-  it("strips http:// when env-stubbed to that protocol", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://localhost:3000");
-    const { siteHost } = await import("@/lib/og");
-    expect(siteHost()).toBe("localhost:3000");
-  });
-});
-
-describe("OgFrame", () => {
-  it("renders the :TWiN brand mark and footer text", async () => {
-    const { OgFrame } = await import("@/lib/og");
-    const html = renderToStaticMarkup(
-      <OgFrame footer="Footer string">Body</OgFrame>,
-    );
-    expect(html).toContain(":TWiN");
-    expect(html).toContain("Footer string");
-    expect(html).toContain("Body");
-  });
-
-  it("renders the topRight slot when provided", async () => {
-    const { OgFrame } = await import("@/lib/og");
-    const html = renderToStaticMarkup(
-      <OgFrame topRight={<span>top-right-slot</span>} footer="f">
-        Body
-      </OgFrame>,
-    );
-    expect(html).toContain("top-right-slot");
-  });
-});
-
-describe("OG_FONTS", () => {
-  it("exports two Inter weights with non-empty font buffers", async () => {
-    const { OG_FONTS } = await import("@/lib/og");
-    expect(OG_FONTS).toHaveLength(2);
-    const weights = OG_FONTS.map((f) => f.weight).sort();
+  it("returns two Inter weights with non-empty font buffers", async () => {
+    const { getOgFonts } = await import("@/lib/og");
+    const fonts = getOgFonts();
+    expect(fonts).toHaveLength(2);
+    const weights = fonts.map((f) => f.weight).sort();
     expect(weights).toEqual([400, 700]);
-    for (const f of OG_FONTS) {
+    for (const f of fonts) {
       expect(f.name).toBe("Inter");
       expect(f.style).toBe("normal");
       expect(f.data.length).toBeGreaterThan(0);
     }
+  });
+
+  it("memoizes the font buffers across calls", async () => {
+    const { getOgFonts } = await import("@/lib/og");
+    expect(getOgFonts()).toBe(getOgFonts());
   });
 });
