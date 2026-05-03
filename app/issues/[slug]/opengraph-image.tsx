@@ -1,8 +1,7 @@
 import { ImageResponse } from "next/og";
 import { getIssueBySlug, getIssueSlugs, formatIssueDate } from "@/lib/issues";
 import { SITE } from "@/lib/site";
-import { PALETTE } from "@/lib/theme";
-import { OG_FONTS, OG_SIZE, OgFrame, siteHost } from "@/lib/og";
+import { OG_SIZE, OgIssueCard, getOgFonts } from "@/lib/og";
 
 export const dynamic = "force-static";
 export const dynamicParams = false;
@@ -24,34 +23,12 @@ export default async function IssueOpengraphImage({
 
   return new ImageResponse(
     (
-      <OgFrame
-        topRight={
-          issue ? (
-            <span style={{ color: PALETTE.mutedDark, fontSize: 24 }}>
-              Issue #{issue.issue} · {formatIssueDate(issue.date)}
-            </span>
-          ) : null
-        }
-        footer={siteHost()}
-      >
-        <div
-          style={{
-            fontSize: 64,
-            fontWeight: 700,
-            lineHeight: 1.1,
-            letterSpacing: -1,
-            color: PALETTE.fgDark,
-            maxWidth: 1040,
-            display: "-webkit-box",
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-        >
-          {issue?.title ?? SITE.name}
-        </div>
-      </OgFrame>
+      <OgIssueCard
+        title={issue?.title ?? SITE.name}
+        issueNumber={issue?.issue ?? 0}
+        date={issue ? formatIssueDate(issue.date) : ""}
+      />
     ),
-    { ...size, fonts: OG_FONTS },
+    { ...size, fonts: getOgFonts() },
   );
 }

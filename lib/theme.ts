@@ -7,5 +7,4 @@ export const PALETTE = {
   mutedDark: "#6b8a82",
   ctaFrom: "#00b952",
   ctaTo: "#378ccc",
-  linkLight: "#195174",
 } as const;

@@ -2,52 +2,115 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import { PALETTE } from "./theme";
-import { SITE } from "./site";
+import { siteHost } from "./site";
 
-// `import.meta.dirname` isn't substituted by webpack; use cwd. `next build`
-// is always invoked from the project root.
 const FONTS_DIR = path.join(process.cwd(), "public", "fonts");
 
 export const OG_SIZE = { width: 1200, height: 630 } as const;
 
-export const OG_FONTS = [
-  {
-    name: "Inter",
-    data: fs.readFileSync(path.join(FONTS_DIR, "Inter-Regular.ttf")),
-    weight: 400 as const,
-    style: "normal" as const,
-  },
-  {
-    name: "Inter",
-    data: fs.readFileSync(path.join(FONTS_DIR, "Inter-Bold.ttf")),
-    weight: 700 as const,
-    style: "normal" as const,
-  },
-];
+export type OgFont = {
+  name: "Inter";
+  data: Buffer;
+  weight: 400 | 700;
+  style: "normal";
+};
 
-export function OgFrame({
-  topRight,
-  children,
-  footer,
-}: {
-  topRight?: React.ReactNode;
-  children: React.ReactNode;
-  footer: React.ReactNode;
-}) {
+let _fonts: OgFont[] | null = null;
+
+function readFont(file: string): Buffer {
+  const full = path.join(FONTS_DIR, file);
+  try {
+    return fs.readFileSync(full);
+  } catch (err) {
+    throw new Error(
+      `OG font missing: ${full}. Ensure public/fonts/${file} is present in the build artifact.`,
+      { cause: err },
+    );
+  }
+}
+
+export function getOgFonts(): OgFont[] {
+  if (_fonts === null) {
+    _fonts = [
+      {
+        name: "Inter",
+        data: readFont("Inter-Regular.ttf"),
+        weight: 400,
+        style: "normal",
+      },
+      {
+        name: "Inter",
+        data: readFont("Inter-Bold.ttf"),
+        weight: 700,
+        style: "normal",
+      },
+    ];
+  }
+  return _fonts;
+}
+
+const FRAME_STYLE = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  flexDirection: "column" as const,
+  justifyContent: "space-between" as const,
+  padding: "72px 80px",
+  background: `linear-gradient(135deg, ${PALETTE.bgDark} 0%, #0b151b 60%, #0f2a23 100%)`,
+  color: PALETTE.fgDark,
+  fontFamily: "Inter",
+};
+
+function BrandMark() {
+  return (
+    <span
+      style={{
+        fontFamily: "Inter, ui-monospace",
+        fontSize: 32,
+        color: PALETTE.accentGreen,
+      }}
+    >
+      :TWiN
+    </span>
+  );
+}
+
+function FooterStripe({ text }: { text: string | number }) {
   return (
     <div
       style={{
-        width: "100%",
-        height: "100%",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        padding: "72px 80px",
-        background: `linear-gradient(135deg, ${PALETTE.bgDark} 0%, #0b151b 60%, #0f2a23 100%)`,
-        color: PALETTE.fgDark,
-        fontFamily: "Inter",
+        alignItems: "center",
+        gap: 14,
+        fontSize: 24,
+        color: PALETTE.accentGreen,
       }}
     >
+      <span
+        style={{
+          width: 14,
+          height: 14,
+          borderRadius: 999,
+          background: `linear-gradient(135deg, ${PALETTE.ctaFrom} 0%, ${PALETTE.ctaTo} 100%)`,
+          display: "block",
+        }}
+      />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+export function OgIssueCard({
+  title,
+  issueNumber,
+  date,
+}: {
+  title: string;
+  issueNumber: number;
+  date: string;
+}) {
+  return (
+    <div style={FRAME_STYLE}>
       <div
         style={{
           display: "flex",
@@ -55,42 +118,78 @@ export function OgFrame({
           justifyContent: "space-between",
         }}
       >
-        <span
-          style={{
-            fontFamily: "Inter, ui-monospace",
-            fontSize: 32,
-            color: PALETTE.accentGreen,
-          }}
-        >
-          :TWiN
+        <BrandMark />
+        <span style={{ color: PALETTE.mutedDark, fontSize: 24 }}>
+          Issue #{issueNumber} · {date}
         </span>
-        {topRight}
       </div>
-      {children}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          fontSize: 24,
-          color: PALETTE.accentGreen,
+          fontSize: 64,
+          fontWeight: 700,
+          lineHeight: 1.1,
+          letterSpacing: -1,
+          color: PALETTE.fgDark,
+          maxWidth: 1040,
+          display: "-webkit-box",
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
         }}
       >
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            borderRadius: 999,
-            background: `linear-gradient(135deg, ${PALETTE.ctaFrom} 0%, ${PALETTE.ctaTo} 100%)`,
-            display: "block",
-          }}
-        />
-        <span>{footer}</span>
+        {title}
       </div>
+      <FooterStripe text={siteHost()} />
     </div>
   );
 }
 
-export function siteHost(): string {
-  return SITE.url.replace(/^https?:\/\//, "");
+export function OgHomeCard({
+  title,
+  description,
+  subtitle,
+}: {
+  title: string;
+  description: string;
+  subtitle: string;
+}) {
+  return (
+    <div style={FRAME_STYLE}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <BrandMark />
+        <span style={{ color: PALETTE.accentBlue, fontSize: 28 }}>
+          {siteHost()}
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div
+          style={{
+            fontSize: 76,
+            fontWeight: 700,
+            lineHeight: 1.05,
+            color: PALETTE.fgDark,
+            letterSpacing: -1,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: 32,
+            color: PALETTE.mutedDark,
+            maxWidth: 980,
+          }}
+        >
+          {description}
+        </div>
+      </div>
+      <FooterStripe text={subtitle} />
+    </div>
+  );
 }
