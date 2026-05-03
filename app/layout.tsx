@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/site";
+import { PALETTE } from "@/lib/theme";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -35,8 +36,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#e7eee8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f191f" },
+    { media: "(prefers-color-scheme: light)", color: PALETTE.bgLight },
+    { media: "(prefers-color-scheme: dark)", color: PALETTE.bgDark },
   ],
 };
 
@@ -110,7 +111,14 @@ function SiteFooter() {
         </span>
         <span>
           Independent, community-run weekly. Inspired by the original{" "}
-          <a href="https://dotfyle.com/this-week-in-neovim">dotfyle TWiN</a>.
+          <a
+            href="https://dotfyle.com/this-week-in-neovim"
+            rel="noreferrer noopener"
+            target="_blank"
+          >
+            dotfyle TWiN
+          </a>
+          .
         </span>
         <a href="/feed.xml" className="ml-auto no-underline hover:underline">
           Subscribe via RSS →

@@ -3,12 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   formatIssueDate,
-  getAllIssues,
+  getAdjacent,
   getIssueBySlug,
   getIssueSlugs,
 } from "@/lib/issues";
 import { IssueBody } from "@/components/issue-body";
-import { absoluteUrl } from "@/lib/site";
+import { absoluteUrl, issueHref } from "@/lib/site";
 
 export const dynamicParams = false;
 
@@ -26,11 +26,11 @@ export async function generateMetadata({
   const { slug } = await params;
   const issue = getIssueBySlug(slug);
   if (!issue) return {};
-  const url = absoluteUrl(`/issues/${issue.slug}/`);
+  const url = absoluteUrl(issueHref(issue.slug));
   return {
     title: issue.title,
     description: issue.summary,
-    alternates: { canonical: `/issues/${issue.slug}/` },
+    alternates: { canonical: issueHref(issue.slug) },
     openGraph: {
       type: "article",
       title: issue.title,
@@ -51,10 +51,7 @@ export default async function IssuePage({ params }: { params: Params }) {
   const issue = getIssueBySlug(slug);
   if (!issue) notFound();
 
-  const all = getAllIssues();
-  const idx = all.findIndex((i) => i.slug === issue.slug);
-  const newer = idx > 0 ? all[idx - 1] : null;
-  const older = idx >= 0 && idx < all.length - 1 ? all[idx + 1] : null;
+  const { older, newer } = getAdjacent(issue.slug);
 
   return (
     <article className="space-y-10">
@@ -80,7 +77,7 @@ export default async function IssuePage({ params }: { params: Params }) {
         <div>
           {older && (
             <Link
-              href={`/issues/${older.slug}/`}
+              href={issueHref(older.slug)}
               className="block no-underline hover:underline"
             >
               <span className="block text-xs text-muted">← Older</span>
@@ -91,7 +88,7 @@ export default async function IssuePage({ params }: { params: Params }) {
         <div className="sm:text-right">
           {newer && (
             <Link
-              href={`/issues/${newer.slug}/`}
+              href={issueHref(newer.slug)}
               className="block no-underline hover:underline"
             >
               <span className="block text-xs text-muted">Newer →</span>

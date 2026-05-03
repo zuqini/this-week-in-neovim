@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "start": "next start",
-    "lint": "next lint",
+    "start": "pnpm dlx serve out",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,7 +21,9 @@
     "rehype-autolink-headings": "^7.1.0",
     "rehype-pretty-code": "^0.14.0",
     "rehype-slug": "^6.0.0",
+    "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.0",
+    "server-only": "^0.0.1",
     "shiki": "^1.24.0",
     "zod": "^3.23.0"
   },
@@ -33,7 +35,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.5"
   },
   "packageManager": "pnpm@10.33.2"
 }

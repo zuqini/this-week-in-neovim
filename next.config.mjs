@@ -1,12 +1,15 @@
 import nextMDX from "@next/mdx";
 import remarkGfm from "remark-gfm";
+import remarkFrontmatter from "remark-frontmatter";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypePrettyCode from "rehype-pretty-code";
 
+// `next build --webpack` is required: rehype-pretty-code's options object
+// isn't serializable for Turbopack's IPC. Revisit when upstream closes the gap.
 const withMDX = nextMDX({
   options: {
-    remarkPlugins: [remarkGfm],
+    remarkPlugins: [[remarkFrontmatter, ["yaml"]], remarkGfm],
     rehypePlugins: [
       rehypeSlug,
       [rehypeAutolinkHeadings, { behavior: "wrap" }],

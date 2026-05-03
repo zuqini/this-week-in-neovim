@@ -1,24 +1,6 @@
 import Link from "next/link";
 import { formatIssueDate, type IssueMeta } from "@/lib/issues";
-
-export function IssueCard({ issue }: { issue: IssueMeta }) {
-  return (
-    <article className="border border-[color-mix(in_srgb,var(--border-color)_50%,transparent)] hover:border-link transition-colors p-5 bg-accent-bg/40">
-      <div className="flex items-baseline gap-3 text-sm text-muted">
-        <span className="font-mono">#{issue.issue}</span>
-        <time dateTime={issue.date}>{formatIssueDate(issue.date)}</time>
-      </div>
-      <h3 className="mt-1 text-xl font-semibold">
-        <Link href={`/issues/${issue.slug}/`} className="no-underline hover:underline">
-          {issue.title}
-        </Link>
-      </h3>
-      {issue.summary && (
-        <p className="mt-2 text-fg/85">{issue.summary}</p>
-      )}
-    </article>
-  );
-}
+import { issueHref } from "@/lib/site";
 
 export function IssueRow({ issue }: { issue: IssueMeta }) {
   return (
@@ -31,7 +13,7 @@ export function IssueRow({ issue }: { issue: IssueMeta }) {
           {formatIssueDate(issue.date)}
         </time>
         <Link
-          href={`/issues/${issue.slug}/`}
+          href={issueHref(issue.slug)}
           className="font-semibold no-underline hover:underline"
         >
           {issue.title}

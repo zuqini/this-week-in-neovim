@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getAllIssues, formatIssueDate } from "@/lib/issues";
 import { IssueRow } from "@/components/issue-card";
 import { IssueBody } from "@/components/issue-body";
-import { SITE } from "@/lib/site";
+import { SITE, issueHref } from "@/lib/site";
 
 export default async function HomePage() {
   const issues = getAllIssues();
@@ -35,7 +35,7 @@ export default async function HomePage() {
             {formatIssueDate(latest.date)}
           </time>
           <span className="ml-auto text-sm">
-            <Link href={`/issues/${latest.slug}/`} className="no-underline hover:underline">
+            <Link href={issueHref(latest.slug)} className="no-underline hover:underline">
               Permalink →
             </Link>
           </span>

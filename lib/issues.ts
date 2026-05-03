@@ -4,6 +4,10 @@ import path from "node:path";
 import matter from "gray-matter";
 import { z } from "zod";
 
+export { formatIssueDate, issueDate } from "./date";
+
+// `import.meta.dirname` isn't substituted by webpack; use cwd. `next build`
+// is always invoked from the project root in this repo (no monorepo).
 const CONTENT_DIR = path.join(process.cwd(), "content", "issues");
 
 const SourceSchema = z.object({
@@ -16,11 +20,10 @@ const SourceSchema = z.object({
 const FrontmatterSchema = z.object({
   issue: z.number().int().positive(),
   title: z.string().min(1),
-  date: z
-    .union([z.string(), z.date()])
-    .transform((v) =>
-      (v instanceof Date ? v : new Date(v)).toISOString().slice(0, 10),
-    ),
+  date: z.preprocess(
+    (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v),
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  ),
   summary: z.string().min(1),
   draft: z.boolean().optional().default(false),
   sources: z.array(SourceSchema).default([]),
@@ -33,9 +36,7 @@ export interface IssueMeta extends IssueFrontmatter {
   slug: string;
 }
 
-function readIssueMeta(slug: string): IssueMeta {
-  const file = path.join(CONTENT_DIR, `${slug}.mdx`);
-  const raw = fs.readFileSync(file, "utf8");
+export function parseIssueMeta(raw: string, slug: string): IssueMeta {
   const { data } = matter(raw);
   const parsed = FrontmatterSchema.safeParse(data);
   if (!parsed.success) {
@@ -43,39 +44,66 @@ function readIssueMeta(slug: string): IssueMeta {
       `Invalid frontmatter in ${slug}.mdx: ${parsed.error.message}`,
     );
   }
+  if (parsed.data.title.length > 90) {
+    console.warn(
+      `Issue ${slug}: title is ${parsed.data.title.length} chars; OG card clamps to 3 lines.`,
+    );
+  }
   return { ...parsed.data, slug };
 }
 
-export function getIssueSlugs(): string[] {
-  if (!fs.existsSync(CONTENT_DIR)) return [];
+export function loadIssuesFromDir(dir: string): IssueMeta[] {
+  if (!fs.existsSync(dir)) return [];
   return fs
-    .readdirSync(CONTENT_DIR)
-    .filter((f) => f.endsWith(".mdx") && !f.endsWith(".draft.mdx"))
-    .map((f) => f.replace(/\.mdx$/, ""));
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".mdx"))
+    .map((f) => {
+      const slug = f.replace(/\.mdx$/, "");
+      const raw = fs.readFileSync(path.join(dir, f), "utf8");
+      return parseIssueMeta(raw, slug);
+    })
+    .filter((i) => !i.draft)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.issue - a.issue);
 }
 
+let _all: IssueMeta[] | null = null;
+
 export function getAllIssues(): IssueMeta[] {
-  return getIssueSlugs()
-    .map(readIssueMeta)
-    .filter((i) => !i.draft)
-    .sort((a, b) => b.date.localeCompare(a.date));
+  if (process.env.NODE_ENV !== "production") return loadIssuesFromDir(CONTENT_DIR);
+  if (_all === null) _all = loadIssuesFromDir(CONTENT_DIR);
+  return _all;
+}
+
+export function getIssueSlugs(): string[] {
+  return getAllIssues().map((i) => i.slug);
 }
 
 export function getIssueBySlug(slug: string): IssueMeta | null {
-  try {
-    const meta = readIssueMeta(slug);
-    return meta.draft ? null : meta;
-  } catch {
-    return null;
-  }
+  return getAllIssues().find((i) => i.slug === slug) ?? null;
 }
 
-export function formatIssueDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+export function findAdjacent(
+  issues: IssueMeta[],
+  slug: string,
+): { older: IssueMeta | null; newer: IssueMeta | null } {
+  const idx = issues.findIndex((i) => i.slug === slug);
+  if (idx === -1) return { older: null, newer: null };
+  return {
+    newer: idx > 0 ? issues[idx - 1] : null,
+    older: idx < issues.length - 1 ? issues[idx + 1] : null,
+  };
+}
+
+export function getAdjacent(slug: string): {
+  older: IssueMeta | null;
+  newer: IssueMeta | null;
+} {
+  return findAdjacent(getAllIssues(), slug);
+}
+
+export async function loadIssueBody(
+  slug: string,
+): Promise<React.ComponentType> {
+  const mod = await import(`../content/issues/${slug}.mdx`);
+  return mod.default;
 }

@@ -12,21 +12,18 @@
   --color-bg: var(--bg);
   --color-accent-bg: var(--accent-bg);
   --color-link: var(--link);
-  --color-accent: var(--accent);
   --color-border-themed: var(--border-color);
   --color-muted: var(--muted);
 }
 
+/* mirror lib/theme.ts PALETTE */
 :root {
   --fg: #29332f;
   --bg: #e7eee8;
   --accent-bg: #d3e4db;
   --link: #195174;
-  --accent: #000;
   --border-color: #658fac;
   --muted: #5a6863;
-  --cta-from: #00b952;
-  --cta-to: #378ccc;
   color-scheme: light;
 }
 
@@ -36,7 +33,6 @@
     --bg: #0f191f;
     --accent-bg: #0b151b;
     --link: #5fb950;
-    --accent: #61ff00;
     --border-color: #1174b1;
     --muted: #6b8a82;
     color-scheme: dark;
@@ -95,14 +91,6 @@ pre {
 hr {
   border-color: var(--border-color);
   opacity: 0.4;
-}
-
-.cta-gradient {
-  background-image: linear-gradient(135deg, var(--cta-from), var(--cta-to));
-  color: #fff;
-}
-.cta-gradient:hover {
-  filter: brightness(1.05);
 }
 
 .prose {
