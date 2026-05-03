@@ -39,4 +39,11 @@ describe("issueDate", () => {
     expect(issueDate(iso).toISOString()).toBe("2026-05-04T00:00:00.000Z");
     expect(issueDate(iso).toISOString().slice(0, 10)).toBe(iso);
   });
+
+  it("throws a descriptive error on non-YYYY-MM-DD input", () => {
+    expect(() => issueDate("not-a-date")).toThrow(/YYYY-MM-DD/);
+    expect(() => issueDate("2026/05/04")).toThrow(/YYYY-MM-DD/);
+    expect(() => issueDate("2026-5-4")).toThrow(/YYYY-MM-DD/);
+    expect(() => issueDate("")).toThrow(/YYYY-MM-DD/);
+  });
 });

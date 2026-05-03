@@ -1,3 +1,5 @@
+import { issueDate } from "./date";
+
 export const SITE = {
   name: "This Week in Neovim",
   shortName: "TWiN",
@@ -7,6 +9,8 @@ export const SITE = {
   author: "This Week in Neovim",
   github: "https://github.com/zuqini/this-week-in-neovim",
 } as const;
+
+export const SITE_FLOOR_DATE = issueDate("2026-05-01");
 
 export function absoluteUrl(pathname: string): string {
   const p = pathname.startsWith("/") ? pathname : `/${pathname}`;

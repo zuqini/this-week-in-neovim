@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRssXml, escapeXml } from "@/lib/feed";
+import { buildRssXml } from "@/lib/feed";
 import type { IssueMeta } from "@/lib/issues";
 
 const FIXTURES: IssueMeta[] = [
@@ -31,22 +31,6 @@ const FIXTURES: IssueMeta[] = [
     sources: [],
   },
 ];
-
-describe("escapeXml", () => {
-  it("escapes &<>'\" with numeric entity for apostrophe", () => {
-    expect(escapeXml(`a & b < c > d ' e " f`)).toBe(
-      "a &amp; b &lt; c &gt; d &#39; e &quot; f",
-    );
-  });
-
-  it("strips illegal XML 1.0 control characters", () => {
-    expect(escapeXml("hello\x00world\x07!")).toBe("helloworld!");
-  });
-
-  it("preserves tab/LF/CR", () => {
-    expect(escapeXml("a\tb\nc\rd")).toBe("a\tb\nc\rd");
-  });
-});
 
 describe("buildRssXml", () => {
   it("escapes titles with &, <, '", () => {
@@ -96,5 +80,59 @@ describe("buildRssXml", () => {
   it("emits a (possibly empty) <description> even when summary is empty", () => {
     const xml = buildRssXml([{ ...FIXTURES[0], summary: "" }]);
     expect(xml).toContain("<description></description>");
+  });
+
+  it("escapes &<>'\" and strips illegal control chars in titles/summaries", () => {
+    const xml = buildRssXml([
+      {
+        ...FIXTURES[0],
+        title: `a & b < c > d ' e " f`,
+        summary: "hello\x00world\x07!\tlive\nstays\rok",
+      },
+    ]);
+    expect(xml).toContain("<title>a &amp; b &lt; c &gt; d &#39; e &quot; f</title>");
+    expect(xml).toContain(
+      "<description>helloworld!\tlive\nstays\rok</description>",
+    );
+  });
+
+  it("replaces a lone high surrogate with U+FFFD", () => {
+    const xml = buildRssXml([
+      { ...FIXTURES[0], title: "lone-high:\uD83D!" },
+    ]);
+    expect(xml).toContain("<title>lone-high:�!</title>");
+    expect(xml).not.toContain("\uD83D");
+  });
+
+  it("replaces a lone low surrogate with U+FFFD", () => {
+    const xml = buildRssXml([
+      { ...FIXTURES[0], title: "lone-low:\uDE00!" },
+    ]);
+    expect(xml).toContain("<title>lone-low:�!</title>");
+    expect(xml).not.toContain("\uDE00");
+  });
+
+  it("strips U+FFFE", () => {
+    const xml = buildRssXml([
+      { ...FIXTURES[0], title: "ffe:￾!" },
+    ]);
+    expect(xml).toContain("<title>ffe:!</title>");
+    expect(xml).not.toContain("￾");
+  });
+
+  it("strips U+FFFF", () => {
+    const xml = buildRssXml([
+      { ...FIXTURES[0], title: "fff:￿!" },
+    ]);
+    expect(xml).toContain("<title>fff:!</title>");
+    expect(xml).not.toContain("￿");
+  });
+
+  it("preserves a valid surrogate pair (U+1F600 grinning face)", () => {
+    const grinning = "😀";
+    const xml = buildRssXml([
+      { ...FIXTURES[0], title: `pair:${grinning}!` },
+    ]);
+    expect(xml).toContain(`<title>pair:${grinning}!</title>`);
   });
 });
