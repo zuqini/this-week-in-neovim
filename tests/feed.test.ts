@@ -77,4 +77,24 @@ describe("buildRssXml", () => {
   it("is byte-identical across calls", () => {
     expect(buildRssXml(FIXTURES)).toBe(buildRssXml(FIXTURES));
   });
+
+  it("falls back to epoch lastBuildDate and emits no items for empty input", () => {
+    const xml = buildRssXml([]);
+    expect(xml).toContain(
+      "<lastBuildDate>Thu, 01 Jan 1970 00:00:00 GMT</lastBuildDate>",
+    );
+    expect(xml).not.toContain("<item>");
+  });
+
+  it("emits exactly one <item> for a single-issue feed", () => {
+    const xml = buildRssXml([FIXTURES[0]]);
+    const matches = xml.match(/<item>/g) ?? [];
+    expect(matches.length).toBe(1);
+    expect(xml).toMatchSnapshot();
+  });
+
+  it("emits a (possibly empty) <description> even when summary is empty", () => {
+    const xml = buildRssXml([{ ...FIXTURES[0], summary: "" }]);
+    expect(xml).toContain("<description></description>");
+  });
 });

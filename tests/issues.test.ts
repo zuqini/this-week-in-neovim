@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -31,9 +31,37 @@ describe("parseIssueMeta", () => {
     });
   });
 
+  it("defaults draft and sources when omitted", () => {
+    const raw = fs.readFileSync(
+      path.join(ISSUES_DIR, "2026-01-05.mdx"),
+      "utf8",
+    );
+    const meta = parseIssueMeta(raw, "2026-01-05");
+    expect(meta.draft).toBe(false);
+    expect(meta.sources).toEqual([]);
+  });
+
   it("throws on negative issue number", () => {
     expect(() =>
       parseIssueMeta(readFixture("invalid-negative.mdx"), "invalid-negative"),
+    ).toThrow(/Invalid frontmatter/);
+  });
+
+  it("throws on zero issue number", () => {
+    expect(() =>
+      parseIssueMeta(
+        readFixture("invalid-zero-issue.mdx"),
+        "invalid-zero-issue",
+      ),
+    ).toThrow(/Invalid frontmatter/);
+  });
+
+  it("throws on non-integer issue number", () => {
+    expect(() =>
+      parseIssueMeta(
+        readFixture("invalid-non-integer-issue.mdx"),
+        "invalid-non-integer-issue",
+      ),
     ).toThrow(/Invalid frontmatter/);
   });
 
@@ -47,6 +75,61 @@ describe("parseIssueMeta", () => {
     expect(() =>
       parseIssueMeta(readFixture("invalid-bad-date.mdx"), "invalid-bad-date"),
     ).toThrow(/Invalid frontmatter/);
+  });
+
+  it("throws when a source url is not a URL", () => {
+    expect(() =>
+      parseIssueMeta(
+        readFixture("invalid-source-url.mdx"),
+        "invalid-source-url",
+      ),
+    ).toThrow(/Invalid frontmatter/);
+  });
+
+  it("throws when a source id is empty", () => {
+    expect(() =>
+      parseIssueMeta(
+        readFixture("invalid-source-empty-id.mdx"),
+        "invalid-source-empty-id",
+      ),
+    ).toThrow(/Invalid frontmatter/);
+  });
+
+  it("accepts a valid sources array", () => {
+    const meta = parseIssueMeta(
+      readFixture("valid-with-sources.mdx"),
+      "valid-with-sources",
+    );
+    expect(meta.sources).toEqual([
+      {
+        id: "s1",
+        url: "https://example.com",
+        fetched_at: "2026-03-01",
+        title: "Example",
+      },
+      { id: "s2", url: "https://example.org/path" },
+    ]);
+  });
+
+  it("normalizes a Date-typed date frontmatter to ISO yyyy-mm-dd", () => {
+    const meta = parseIssueMeta(
+      readFixture("valid-date-as-date.mdx"),
+      "valid-date-as-date",
+    );
+    expect(meta.date).toBe("2026-04-06");
+  });
+
+  it("warns when title length exceeds 90 chars", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      parseIssueMeta(readFixture("valid-long-title.mdx"), "valid-long-title");
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0][0]).toMatch(
+        /Issue valid-long-title: title is \d+ chars/,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
@@ -97,6 +180,54 @@ describe("findAdjacent", () => {
       older: null,
       newer: null,
     });
+  });
+});
+
+describe("getAllIssues + production caching", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("includes the real production slug", async () => {
+    const mod = await import("@/lib/issues");
+    expect(mod.getAllIssues().some((i) => i.slug === "2026-05-04")).toBe(true);
+  });
+
+  it("returns the same array reference across calls in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const mod = await import("@/lib/issues");
+    expect(mod.getAllIssues()).toBe(mod.getAllIssues());
+  });
+
+  it("returns fresh arrays in non-production", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    const mod = await import("@/lib/issues");
+    expect(mod.getAllIssues()).not.toBe(mod.getAllIssues());
+  });
+});
+
+describe("getIssueSlugs / getIssueBySlug / getAdjacent", () => {
+  it("getIssueSlugs preserves getAllIssues order", async () => {
+    const { getAllIssues, getIssueSlugs } = await import("@/lib/issues");
+    expect(getIssueSlugs()).toEqual(getAllIssues().map((i) => i.slug));
+  });
+
+  it("getIssueBySlug returns the meta for a known slug, null otherwise", async () => {
+    const { getIssueBySlug } = await import("@/lib/issues");
+    expect(getIssueBySlug("2026-05-04")?.slug).toBe("2026-05-04");
+    expect(getIssueBySlug("not-a-real-slug")).toBeNull();
+  });
+
+  it("getAdjacent agrees with findAdjacent against getAllIssues()", async () => {
+    const { getAllIssues, getAdjacent } = await import("@/lib/issues");
+    const all = getAllIssues();
+    const target = all[0]?.slug;
+    if (!target) return;
+    expect(getAdjacent(target)).toEqual(findAdjacent(all, target));
   });
 });
 
