@@ -12,7 +12,12 @@ const FIXTURES = path.join(import.meta.dirname, "fixtures");
 const ISSUES_DIR = path.join(FIXTURES, "issues");
 
 function readFixture(name: string): string {
-  return fs.readFileSync(path.join(FIXTURES, name), "utf8");
+  const sub = name.startsWith("invalid-")
+    ? "parser/invalid"
+    : name.startsWith("valid-")
+      ? "parser/valid"
+      : "";
+  return fs.readFileSync(path.join(FIXTURES, sub, name), "utf8");
 }
 
 describe("parseIssueMeta", () => {
