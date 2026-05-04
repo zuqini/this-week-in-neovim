@@ -22,7 +22,7 @@ export interface DefaultClientOpts {
   userAgent?: string;
 }
 
-const DEFAULT_USER_AGENT =
+export const DEFAULT_USER_AGENT =
   "this-week-in-neovim/0.1 (https://github.com/zuqini/this-week-in-neovim)";
 
 const RATE_LIMIT_GAP_MS = 1000;
