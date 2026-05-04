@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getAllIssues } from "@/lib/issues";
-import { IssueRow } from "@/components/issue-card";
+import { IssueRow } from "@/components/issue-row";
 
 export const metadata: Metadata = {
   title: "Archive",

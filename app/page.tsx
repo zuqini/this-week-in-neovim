@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { getAllIssues } from "@/lib/issues";
 import { formatIssueDate } from "@/lib/date";
-import { IssueRow } from "@/components/issue-card";
+import { IssueRow } from "@/components/issue-row";
 import { IssueBody } from "@/components/issue-body";
 import { SITE, issueHref } from "@/lib/site";
 
-export default async function HomePage() {
+export default function HomePage() {
   const issues = getAllIssues();
 
   if (issues.length === 0) {
@@ -47,7 +47,7 @@ export default async function HomePage() {
         {latest.summary && (
           <p className="text-fg/80 text-lg mb-8">{latest.summary}</p>
         )}
-        <IssueBody issue={latest} />
+        <IssueBody slug={latest.slug} />
       </section>
 
       {earlier.length > 0 && (

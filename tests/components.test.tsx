@@ -3,7 +3,7 @@
 // integration test for that path.
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { IssueRow } from "@/components/issue-card";
+import { IssueRow } from "@/components/issue-row";
 import { makeIssue } from "./helpers/factory";
 
 const ISSUE = makeIssue();

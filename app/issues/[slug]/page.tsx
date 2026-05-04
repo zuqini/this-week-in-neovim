@@ -68,7 +68,7 @@ export default async function IssuePage({ params }: { params: Params }) {
         )}
       </header>
 
-      <IssueBody issue={issue} />
+      <IssueBody slug={issue.slug} />
 
       <nav
         aria-label="Adjacent issues"

@@ -8,8 +8,8 @@ import {
 } from "./helpers/mock-issues";
 
 vi.mock("@/components/issue-body", () => ({
-  IssueBody: ({ issue }: { issue: { slug: string } }) => (
-    <div data-issue-body={issue.slug}>[issue body stub]</div>
+  IssueBody: ({ slug }: { slug: string }) => (
+    <div data-issue-body={slug}>[issue body stub]</div>
   ),
 }));
 

@@ -3,10 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  loadIssueBody,
   loadIssuesFromDir,
   parseIssueMeta,
 } from "@/lib/issues";
+import { loadIssueBody } from "@/components/issue-body";
 
 const FIXTURES = path.join(import.meta.dirname, "fixtures");
 const ISSUES_DIR = path.join(FIXTURES, "issues");
@@ -113,7 +113,7 @@ describe("parseIssueMeta", () => {
   it("accepts a valid sources array", () => {
     const meta = parseIssueMeta(
       readFixture("valid-with-sources.mdx"),
-      "valid-with-sources",
+      "2026-03-02-with-sources",
     );
     expect(meta.sources).toEqual([
       {
@@ -129,7 +129,7 @@ describe("parseIssueMeta", () => {
   it("normalizes a Date-typed date frontmatter to ISO yyyy-mm-dd", () => {
     const meta = parseIssueMeta(
       readFixture("valid-date-as-date.mdx"),
-      "valid-date-as-date",
+      "2026-04-06-date-as-date",
     );
     expect(meta.date).toBe("2026-04-06");
   });
@@ -137,10 +137,19 @@ describe("parseIssueMeta", () => {
   it("treats YAML 1.1 booleans/sexagesimals as plain strings (YAML 1.2 schema)", () => {
     const meta = parseIssueMeta(
       readFixture("valid-yaml12-strings.mdx"),
-      "valid-yaml12-strings",
+      "2026-04-20-yaml12-strings",
     );
     expect(meta.title).toBe("No");
     expect(meta.summary).toBe("1:30:00");
+  });
+
+  it("throws when slug's date prefix does not match frontmatter date", () => {
+    expect(() =>
+      parseIssueMeta(
+        readFixture("valid-date-as-date.mdx"),
+        "2026-01-01-mismatch",
+      ),
+    ).toThrow(/Slug\/date mismatch/);
   });
 
 });
