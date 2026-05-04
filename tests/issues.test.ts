@@ -9,7 +9,7 @@ import {
   loadIssuesFromDir,
   parseIssueMeta,
 } from "@/lib/issues";
-import { loadIssueBody } from "@/components/issue-body";
+import { loadIssueBody } from "@/lib/issues/body";
 
 const FIXTURES = path.join(import.meta.dirname, "fixtures");
 const ISSUES_DIR = path.join(FIXTURES, "issues");
@@ -52,7 +52,7 @@ describe("parseIssueMeta", () => {
 
   it("throws on negative issue number", () => {
     expect(() =>
-      parseIssueMeta(readFixture("invalid-negative.mdx"), "invalid-negative"),
+      parseIssueMeta(readFixture("invalid-negative.mdx"), "2026-01-01-negative"),
     ).toThrow(/Invalid frontmatter/);
   });
 
@@ -60,7 +60,7 @@ describe("parseIssueMeta", () => {
     expect(() =>
       parseIssueMeta(
         readFixture("invalid-zero-issue.mdx"),
-        "invalid-zero-issue",
+        "2026-01-01-zero-issue",
       ),
     ).toThrow(/Invalid frontmatter/);
   });
@@ -69,20 +69,20 @@ describe("parseIssueMeta", () => {
     expect(() =>
       parseIssueMeta(
         readFixture("invalid-non-integer-issue.mdx"),
-        "invalid-non-integer-issue",
+        "2026-01-01-non-integer-issue",
       ),
     ).toThrow(/Invalid frontmatter/);
   });
 
   it("throws on missing title", () => {
     expect(() =>
-      parseIssueMeta(readFixture("invalid-no-title.mdx"), "invalid-no-title"),
+      parseIssueMeta(readFixture("invalid-no-title.mdx"), "2026-01-01-no-title"),
     ).toThrow(/Invalid frontmatter/);
   });
 
   it("throws on malformed date", () => {
     expect(() =>
-      parseIssueMeta(readFixture("invalid-bad-date.mdx"), "invalid-bad-date"),
+      parseIssueMeta(readFixture("invalid-bad-date.mdx"), "2026-01-01-bad-date"),
     ).toThrow(/Invalid frontmatter/);
   });
 
@@ -90,7 +90,7 @@ describe("parseIssueMeta", () => {
     expect(() =>
       parseIssueMeta(
         readFixture("invalid-date-with-time.mdx"),
-        "invalid-date-with-time",
+        "2026-01-01-date-with-time",
       ),
     ).toThrow(/Invalid frontmatter/);
   });
@@ -99,7 +99,7 @@ describe("parseIssueMeta", () => {
     expect(() =>
       parseIssueMeta(
         readFixture("invalid-source-url.mdx"),
-        "invalid-source-url",
+        "2026-01-01-source-url",
       ),
     ).toThrow(/Invalid frontmatter/);
   });
@@ -108,9 +108,15 @@ describe("parseIssueMeta", () => {
     expect(() =>
       parseIssueMeta(
         readFixture("invalid-source-empty-id.mdx"),
-        "invalid-source-empty-id",
+        "2026-01-01-source-empty-id",
       ),
     ).toThrow(/Invalid frontmatter/);
+  });
+
+  it("throws when slug does not match the SLUG_SHAPE regex", () => {
+    expect(() =>
+      parseIssueMeta(readFixture("valid-with-sources.mdx"), "not-a-date"),
+    ).toThrow(/Invalid issue slug/);
   });
 
   it("accepts a valid sources array", () => {
@@ -163,7 +169,7 @@ describe("loadIssuesFromDir", () => {
     expect(issues.find((i) => i.slug === "2099-12-31")).toBeUndefined();
   });
 
-  it("sorts by date desc, then issue desc (tie-stable)", () => {
+  it("sorts by date desc, then issue desc (strictly decreasing)", () => {
     const issues = loadIssuesFromDir(ISSUES_DIR);
     const slugs = issues.map((i) => i.slug);
     expect(slugs).toEqual([

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAllIssues } from "@/lib/issues";
+import { getAllIssues, groupIssuesByYear } from "@/lib/issues";
 import { IssueRow } from "@/components/issue-row";
 
 export const metadata: Metadata = {
@@ -11,15 +11,7 @@ export const metadata: Metadata = {
 
 export default function ArchivePage() {
   const issues = getAllIssues();
-
-  const byYear = new Map<string, typeof issues>();
-  for (const issue of issues) {
-    const year = issue.date.slice(0, 4);
-    const bucket = byYear.get(year) ?? [];
-    bucket.push(issue);
-    byYear.set(year, bucket);
-  }
-  const years = Array.from(byYear.keys()).sort((a, b) => b.localeCompare(a));
+  const years = groupIssuesByYear(issues);
 
   return (
     <article className="space-y-12">
@@ -31,7 +23,7 @@ export default function ArchivePage() {
             : `${issues.length} issue${issues.length === 1 ? "" : "s"} so far.`}
         </p>
       </header>
-      {years.map((year) => (
+      {years.map(({ year, issues }) => (
         <section key={year} aria-labelledby={`year-${year}`}>
           <h2
             id={`year-${year}`}
@@ -40,7 +32,7 @@ export default function ArchivePage() {
             {year}
           </h2>
           <ul className="list-none p-0 m-0">
-            {byYear.get(year)!.map((issue) => (
+            {issues.map((issue) => (
               <IssueRow key={issue.slug} issue={issue} />
             ))}
           </ul>

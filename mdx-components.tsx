@@ -1,12 +1,12 @@
 import type { MDXComponents } from "mdx/types";
 import type { AnchorHTMLAttributes } from "react";
-import { siteHost } from "@/lib/site";
+import { SITE_HOST } from "@/lib/site";
 
 function isExternal(href: string | undefined): boolean {
   if (!href) return false;
   if (!/^https?:\/\//i.test(href)) return false;
   try {
-    return new URL(href).host !== siteHost();
+    return new URL(href).host !== SITE_HOST;
   } catch {
     return true;
   }

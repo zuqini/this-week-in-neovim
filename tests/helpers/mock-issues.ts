@@ -21,5 +21,6 @@ export function withMockedIssues(issues: IssueMeta[]): void {
 }
 
 export async function typedImport<T>(specifier: string): Promise<T> {
+  vi.resetModules();
   return (await import(specifier)) as T;
 }

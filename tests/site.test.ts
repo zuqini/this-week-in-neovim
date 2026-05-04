@@ -42,7 +42,7 @@ describe("issueHref", () => {
   });
 });
 
-describe("siteHost", () => {
+describe("SITE_HOST", () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -52,14 +52,14 @@ describe("siteHost", () => {
   });
 
   it("returns the host of the default SITE.url", async () => {
-    const { siteHost } = await import("@/lib/site");
-    expect(siteHost()).toBe("thisweekinneovim.org");
+    const { SITE_HOST } = await import("@/lib/site");
+    expect(SITE_HOST).toBe("thisweekinneovim.org");
   });
 
   it("returns host:port for a non-default port", async () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://localhost:3000");
-    const { siteHost } = await import("@/lib/site");
-    expect(siteHost()).toBe("localhost:3000");
+    const { SITE_HOST } = await import("@/lib/site");
+    expect(SITE_HOST).toBe("localhost:3000");
   });
 });
 

@@ -43,10 +43,7 @@ describe("app/sitemap.ts", () => {
     }
 
     if (issues[0]) {
-      const latest = new Date(`${issues[0].date}T00:00:00Z`);
-      expect((home.lastModified as Date).toISOString()).toBe(
-        latest.toISOString(),
-      );
+      expect(home.lastModified).toBe(issues[0].date);
     }
   });
 
@@ -56,9 +53,7 @@ describe("app/sitemap.ts", () => {
       await typedImport<typeof import("@/app/sitemap")>("@/app/sitemap");
     const entries = sitemap();
     expect(entries.length).toBe(2);
-    expect((entries[0].lastModified as Date).toISOString()).toBe(
-      "2026-05-01T00:00:00.000Z",
-    );
+    expect(entries[0].lastModified).toBe("2026-05-01");
   });
 });
 

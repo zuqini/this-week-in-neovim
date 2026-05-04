@@ -31,7 +31,3 @@ export function absoluteUrl(pathname: string): string {
 export function issueHref(slug: string): string {
   return `/issues/${slug}/`;
 }
-
-export function siteHost(): string {
-  return SITE_HOST;
-}

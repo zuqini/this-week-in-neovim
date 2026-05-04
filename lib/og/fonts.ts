@@ -7,7 +7,7 @@ const FONTS_DIR = path.join(process.cwd(), "public", "fonts");
 
 export const OG_SIZE = { width: 1200, height: 630 } as const;
 
-export type OgFont = {
+type OgFont = {
   name: "Inter";
   data: Buffer;
   weight: 400 | 700;

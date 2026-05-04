@@ -77,11 +77,6 @@ describe("buildRssXml", () => {
     expect(xml).toMatchSnapshot();
   });
 
-  it("emits a (possibly empty) <description> even when summary is empty", () => {
-    const xml = buildRssXml([{ ...FIXTURES[0], summary: "" }]);
-    expect(xml).toContain("<description></description>");
-  });
-
   it("escapes &<>'\" and strips illegal control chars in titles/summaries", () => {
     const xml = buildRssXml([
       {

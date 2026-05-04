@@ -1,11 +1,12 @@
 import { PALETTE } from "../theme";
-import { siteHost } from "../site";
+import { SITE_HOST } from "../site";
 
 const OG_TITLE_MAX = 90;
 
 export function truncateOgTitle(title: string): string {
-  if (title.length <= OG_TITLE_MAX) return title;
-  return title.slice(0, OG_TITLE_MAX - 1).trimEnd() + "…";
+  const codePoints = Array.from(title);
+  if (codePoints.length <= OG_TITLE_MAX) return title;
+  return codePoints.slice(0, OG_TITLE_MAX - 1).join("").trimEnd() + "…";
 }
 
 const FRAME_STYLE = {
@@ -98,7 +99,7 @@ export function OgIssueCard({
       >
         {truncateOgTitle(title)}
       </div>
-      <FooterStripe text={siteHost()} />
+      <FooterStripe text={SITE_HOST} />
     </div>
   );
 }
@@ -123,7 +124,7 @@ export function OgHomeCard({
       >
         <BrandMark />
         <span style={{ color: PALETTE.accentBlue, fontSize: 28 }}>
-          {siteHost()}
+          {SITE_HOST}
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>

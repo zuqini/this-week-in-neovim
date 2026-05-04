@@ -8,7 +8,6 @@ import { formatIssueDate } from "@/lib/date";
 import { OG_SIZE, OgIssueCard, renderOg } from "@/lib/og";
 
 export const dynamic = "force-static";
-export const dynamicParams = false;
 export const alt = "This Week in Neovim issue";
 export const size = OG_SIZE;
 export const contentType = "image/png";

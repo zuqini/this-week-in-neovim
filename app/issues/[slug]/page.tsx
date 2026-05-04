@@ -11,8 +11,6 @@ import { IssueBody } from "@/components/issue-body";
 import { IssueHeader } from "@/components/issue-header";
 import { absoluteUrl, issueHref } from "@/lib/site";
 
-export const dynamicParams = false;
-
 export function generateStaticParams() {
   return getIssueRouteParams(getAllIssues());
 }

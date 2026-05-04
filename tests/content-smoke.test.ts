@@ -10,19 +10,15 @@ describe("content/issues/*.mdx", () => {
     expect(fs.existsSync(CONTENT_DIR)).toBe(true);
   });
 
-  const files = fs.existsSync(CONTENT_DIR)
-    ? fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith(".mdx"))
-    : [];
-
-  it("the directory is non-empty", () => {
+  it("the directory is non-empty and every issue parses cleanly", () => {
+    const files = fs
+      .readdirSync(CONTENT_DIR)
+      .filter((f) => f.endsWith(".mdx"));
     expect(files.length).toBeGreaterThan(0);
-  });
-
-  for (const file of files) {
-    it(`parses ${file} cleanly`, () => {
+    for (const file of files) {
       const slug = file.replace(/\.mdx$/, "");
       const raw = fs.readFileSync(path.join(CONTENT_DIR, file), "utf8");
       expect(() => parseIssueMeta(raw, slug)).not.toThrow();
-    });
-  }
+    }
+  });
 });

@@ -23,6 +23,7 @@ export function IssueHeader({ issue, headingId, permalink = false }: Props) {
           <span className="ml-auto text-sm">
             <Link
               href={issueHref(issue.slug)}
+              aria-label={`Permalink to ${issue.title}`}
               className="no-underline hover:underline"
             >
               Permalink →

@@ -7,6 +7,8 @@ const YAML_ENGINE = {
   stringify: (input: object) => yaml.dump(input),
 };
 
+export const SLUG_SHAPE = /^\d{4}-\d{2}-\d{2}(?:-[a-z0-9-]+)?$/;
+
 const SourceSchema = z.object({
   id: z.string().min(1),
   url: z.string().url(),
@@ -43,6 +45,11 @@ export interface IssueMeta extends IssueFrontmatter {
 }
 
 export function parseIssueMeta(raw: string, slug: string): IssueMeta {
+  if (!SLUG_SHAPE.test(slug)) {
+    throw new Error(
+      `Invalid issue slug ${JSON.stringify(slug)}: must match ${SLUG_SHAPE}`,
+    );
+  }
   const { data } = matter(raw, { engines: { yaml: YAML_ENGINE } });
   const parsed = FrontmatterSchema.safeParse(data);
   if (!parsed.success) {

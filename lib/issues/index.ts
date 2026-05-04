@@ -41,6 +41,21 @@ export function getAdjacent(
   };
 }
 
+export function groupIssuesByYear(
+  issues: IssueMeta[],
+): Array<{ year: string; issues: IssueMeta[] }> {
+  const byYear = new Map<string, IssueMeta[]>();
+  for (const issue of issues) {
+    const year = issue.date.slice(0, 4);
+    const bucket = byYear.get(year) ?? [];
+    bucket.push(issue);
+    byYear.set(year, bucket);
+  }
+  return Array.from(byYear.entries())
+    .map(([year, issues]) => ({ year, issues }))
+    .sort((a, b) => Number(b.year) - Number(a.year));
+}
+
 export type { IssueMeta };
 export { parseIssueMeta } from "./schema";
 export { loadIssuesFromDir } from "./loader";

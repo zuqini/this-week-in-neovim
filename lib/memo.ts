@@ -7,14 +7,18 @@ export function memoize<T>(
   fn: () => T,
   opts: { when: () => boolean },
 ): Memoized<T> {
-  let cached: T | null = null;
+  let cached: T;
+  let hasValue = false;
   const memo = (() => {
     if (!opts.when()) return fn();
-    if (cached === null) cached = fn();
+    if (!hasValue) {
+      cached = fn();
+      hasValue = true;
+    }
     return cached;
   }) as Memoized<T>;
   memo.reset = () => {
-    cached = null;
+    hasValue = false;
   };
   return memo;
 }
