@@ -2,7 +2,13 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import yaml from "js-yaml";
 import { z } from "zod";
+
+const YAML_ENGINE = {
+  parse: (input: string) => yaml.load(input) as object,
+  stringify: (input: object) => yaml.dump(input),
+};
 
 // `import.meta.dirname` isn't substituted by webpack; use cwd. `next build`
 // is always invoked from the project root in this repo (no monorepo).
@@ -40,7 +46,7 @@ export interface IssueMeta extends IssueFrontmatter {
 }
 
 export function parseIssueMeta(raw: string, slug: string): IssueMeta {
-  const { data } = matter(raw);
+  const { data } = matter(raw, { engines: { yaml: YAML_ENGINE } });
   const parsed = FrontmatterSchema.safeParse(data);
   if (!parsed.success) {
     throw new Error(
@@ -119,7 +125,7 @@ export function getAdjacent(slug: string): {
 export async function loadIssueBody(
   slug: string,
 ): Promise<React.ComponentType> {
-  if (!/^[\w-]+$/.test(slug)) {
+  if (!/^\d{4}-\d{2}-\d{2}(?:-[a-z0-9-]+)?$/.test(slug)) {
     throw new Error(`Invalid issue slug: ${slug}`);
   }
   const mod = await import(`../content/issues/${slug}.mdx`);

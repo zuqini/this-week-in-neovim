@@ -134,6 +134,15 @@ describe("parseIssueMeta", () => {
     expect(meta.date).toBe("2026-04-06");
   });
 
+  it("treats YAML 1.1 booleans/sexagesimals as plain strings (YAML 1.2 schema)", () => {
+    const meta = parseIssueMeta(
+      readFixture("valid-yaml12-strings.mdx"),
+      "valid-yaml12-strings",
+    );
+    expect(meta.title).toBe("No");
+    expect(meta.summary).toBe("1:30:00");
+  });
+
 });
 
 describe("loadIssuesFromDir", () => {
@@ -286,6 +295,12 @@ describe("loadIssueBody", () => {
 
   it("rejects empty slugs", async () => {
     await expect(loadIssueBody("")).rejects.toThrow(/Invalid issue slug/);
+  });
+
+  it("rejects slugs that don't begin with an ISO date prefix", async () => {
+    await expect(loadIssueBody("__proto__")).rejects.toThrow(/Invalid issue slug/);
+    await expect(loadIssueBody("not-a-date")).rejects.toThrow(/Invalid issue slug/);
+    await expect(loadIssueBody("2026-01-19-Bad_Suffix")).rejects.toThrow(/Invalid issue slug/);
   });
 });
 

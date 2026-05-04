@@ -135,4 +135,26 @@ describe("buildRssXml", () => {
     ]);
     expect(xml).toContain(`<title>pair:${grinning}!</title>`);
   });
+
+  it("strips XML 1.0 noncharacters in the U+FDD0-U+FDEF block", () => {
+    const xml = buildRssXml([
+      {
+        ...FIXTURES[0],
+        title: `fdd0:﷐!fdef:﷯!fdf0:ﷰ!`,
+      },
+    ]);
+    expect(xml).toContain("<title>fdd0:!fdef:!fdf0:ﷰ!</title>");
+    expect(xml).not.toContain("﷐");
+    expect(xml).not.toContain("﷯");
+  });
+
+  it("strips supplementary-plane noncharacters U+1FFFE/F and U+10FFFE/F", () => {
+    const noncharacters = [0x1fffe, 0x1ffff, 0xafffe, 0x10fffe, 0x10ffff]
+      .map((cp) => String.fromCodePoint(cp))
+      .join("|");
+    const xml = buildRssXml([
+      { ...FIXTURES[0], title: `non:${noncharacters}:end` },
+    ]);
+    expect(xml).toContain("<title>non:||||:end</title>");
+  });
 });

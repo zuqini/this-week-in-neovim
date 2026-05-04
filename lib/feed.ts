@@ -10,18 +10,48 @@ const XML_ESCAPES: Record<string, string> = {
   '"': "&quot;",
 };
 
-const ESCAPE_PATTERN =
-  /[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]|[￾￿]|[\x00-\x08\x0B\x0C\x0E-\x1F]|[<>&'"]/g;
+function isXmlAllowedCodePoint(cp: number): boolean {
+  if (cp === 0x09 || cp === 0x0a || cp === 0x0d) return true;
+  if (cp < 0x20) return false;
+  if (cp >= 0xfdd0 && cp <= 0xfdef) return false;
+  const low16 = cp & 0xffff;
+  if (low16 === 0xfffe || low16 === 0xffff) return false;
+  return true;
+}
 
 function escapeXml(input: string): string {
-  return input.replace(ESCAPE_PATTERN, (match) => {
-    if (match.length === 2) return match;
-    const code = match.charCodeAt(0);
-    if (code >= 0xd800 && code <= 0xdfff) return "�";
-    if (code === 0xfffe || code === 0xffff) return "";
-    if (code < 0x20) return "";
-    return XML_ESCAPES[match] ?? match;
-  });
+  let out = "";
+  for (let i = 0; i < input.length; ) {
+    const code = input.charCodeAt(i);
+
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = input.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        const cp = 0x10000 + ((code - 0xd800) << 10) + (next - 0xdc00);
+        if (isXmlAllowedCodePoint(cp)) out += input.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      out += "�";
+      i += 1;
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      out += "�";
+      i += 1;
+      continue;
+    }
+
+    const ch = input[i];
+    const esc = XML_ESCAPES[ch];
+    if (esc !== undefined) {
+      out += esc;
+    } else if (isXmlAllowedCodePoint(code)) {
+      out += ch;
+    }
+    i += 1;
+  }
+  return out;
 }
 
 export function buildRssXml(issues: IssueMeta[]): string {
