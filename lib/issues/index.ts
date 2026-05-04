@@ -16,6 +16,10 @@ export function getIssueSlugs(): string[] {
   return getAllIssues().map((i) => i.slug);
 }
 
+export function getIssueRouteParams(): Array<{ slug: string }> {
+  return getIssueSlugs().map((slug) => ({ slug }));
+}
+
 export function getIssueBySlug(slug: string): IssueMeta | null {
   return getAllIssues().find((i) => i.slug === slug) ?? null;
 }

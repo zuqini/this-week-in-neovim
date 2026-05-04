@@ -17,6 +17,26 @@ describe("OgIssueCard", () => {
     expect(html).toContain("Some issue title");
     expect(html).toContain("thisweekinneovim.org");
   });
+
+  it("truncates titles longer than 90 chars with an ellipsis", async () => {
+    const { truncateOgTitle, OgIssueCard } = await import("@/lib/og");
+    const long = "a".repeat(150);
+    const truncated = truncateOgTitle(long);
+    expect(truncated.length).toBe(90);
+    expect(truncated.endsWith("…")).toBe(true);
+
+    const html = renderToStaticMarkup(
+      <OgIssueCard title={long} issueNumber={1} date="May 4, 2026" />,
+    );
+    expect(html).toContain(truncated);
+    expect(html).not.toContain(long);
+  });
+
+  it("leaves short titles untouched", async () => {
+    const { truncateOgTitle } = await import("@/lib/og");
+    const short = "short title";
+    expect(truncateOgTitle(short)).toBe(short);
+  });
 });
 
 describe("OgHomeCard", () => {

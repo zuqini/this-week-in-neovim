@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { getAllIssues } from "@/lib/issues";
-import { formatIssueDate } from "@/lib/date";
 import { IssueRow } from "@/components/issue-row";
 import { IssueBody } from "@/components/issue-body";
-import { SITE, issueHref } from "@/lib/site";
+import { IssueHeader } from "@/components/issue-header";
+import { SITE } from "@/lib/site";
 
 export default function HomePage() {
   const issues = getAllIssues();
@@ -27,26 +27,8 @@ export default function HomePage() {
   return (
     <div className="space-y-16">
       <Hero />
-      <section aria-labelledby="latest-heading">
-        <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <span className="font-mono text-sm text-muted">
-            Issue #{latest.issue}
-          </span>
-          <time dateTime={latest.date} className="text-sm text-muted">
-            {formatIssueDate(latest.date)}
-          </time>
-          <span className="ml-auto text-sm">
-            <Link href={issueHref(latest.slug)} className="no-underline hover:underline">
-              Permalink →
-            </Link>
-          </span>
-        </div>
-        <h1 id="latest-heading" className="text-3xl sm:text-4xl font-semibold mb-2">
-          {latest.title}
-        </h1>
-        {latest.summary && (
-          <p className="text-fg/80 text-lg mb-8">{latest.summary}</p>
-        )}
+      <section aria-labelledby="latest-heading" className="space-y-8">
+        <IssueHeader issue={latest} headingId="latest-heading" permalink />
         <IssueBody slug={latest.slug} />
       </section>
 

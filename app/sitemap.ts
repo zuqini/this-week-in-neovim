@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 import { getAllIssues } from "@/lib/issues";
 import { issueDate } from "@/lib/date";
-import { absoluteUrl, issueHref, SITE_FLOOR_DATE } from "@/lib/site";
+import { absoluteUrl, issueHref } from "@/lib/site";
+
+const SITE_FLOOR_DATE = issueDate("2026-05-01");
 
 export const dynamic = "force-static";
 

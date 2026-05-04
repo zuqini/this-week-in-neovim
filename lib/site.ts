@@ -1,5 +1,3 @@
-import { issueDate } from "./date";
-
 const RAW_SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://thisweekinneovim.org";
 
@@ -24,8 +22,6 @@ export const SITE = {
 } as const;
 
 export const SITE_HOST = parsedSiteUrl.host;
-
-export const SITE_FLOOR_DATE = issueDate("2026-05-01");
 
 export function absoluteUrl(pathname: string): string {
   const p = pathname.startsWith("/") ? pathname : `/${pathname}`;

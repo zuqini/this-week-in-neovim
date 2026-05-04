@@ -5,10 +5,14 @@ import { parseIssueMeta } from "@/lib/issues";
 
 const CONTENT_DIR = path.join(import.meta.dirname, "..", "content", "issues");
 
-describe.skipIf(!fs.existsSync(CONTENT_DIR))("content/issues/*.mdx", () => {
-  const files = fs
-    .readdirSync(CONTENT_DIR)
-    .filter((f) => f.endsWith(".mdx"));
+describe("content/issues/*.mdx", () => {
+  it("content directory exists", () => {
+    expect(fs.existsSync(CONTENT_DIR)).toBe(true);
+  });
+
+  const files = fs.existsSync(CONTENT_DIR)
+    ? fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith(".mdx"))
+    : [];
 
   it("the directory is non-empty", () => {
     expect(files.length).toBeGreaterThan(0);

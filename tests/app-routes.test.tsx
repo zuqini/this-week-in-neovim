@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { makeIssue } from "./helpers/factory";
 import {
-  freshImport,
+  typedImport,
   withMockedIssues,
   withResetIssuesModule,
 } from "./helpers/mock-issues";
@@ -18,7 +18,7 @@ describe("app/sitemap.ts", () => {
 
   it("emits home + archive + one entry per issue, with absolute URLs", async () => {
     const { default: sitemap } =
-      await freshImport<typeof import("@/app/sitemap")>("@/app/sitemap");
+      await typedImport<typeof import("@/app/sitemap")>("@/app/sitemap");
     const { getAllIssues } = await import("@/lib/issues");
     const issues = getAllIssues();
     const entries = sitemap();
@@ -53,7 +53,7 @@ describe("app/sitemap.ts", () => {
   it("falls back to 2026-05-01 and emits only the static rows when no issues exist", async () => {
     withMockedIssues([]);
     const { default: sitemap } =
-      await freshImport<typeof import("@/app/sitemap")>("@/app/sitemap");
+      await typedImport<typeof import("@/app/sitemap")>("@/app/sitemap");
     const entries = sitemap();
     expect(entries.length).toBe(2);
     expect((entries[0].lastModified as Date).toISOString()).toBe(
@@ -153,7 +153,7 @@ describe("app/issues/page.tsx", () => {
 
   it("renders an <h2> per year and an <li> per issue", async () => {
     const { default: ArchivePage } =
-      await freshImport<typeof import("@/app/issues/page")>(
+      await typedImport<typeof import("@/app/issues/page")>(
         "@/app/issues/page",
       );
     const { getAllIssues } = await import("@/lib/issues");
@@ -170,7 +170,7 @@ describe("app/issues/page.tsx", () => {
   it("renders the empty-state copy when no issues exist", async () => {
     withMockedIssues([]);
     const { default: ArchivePage } =
-      await freshImport<typeof import("@/app/issues/page")>(
+      await typedImport<typeof import("@/app/issues/page")>(
         "@/app/issues/page",
       );
     const html = renderToStaticMarkup(ArchivePage());
@@ -184,7 +184,7 @@ describe("app/page.tsx", () => {
   it("renders the empty-state copy when no issues exist", async () => {
     withMockedIssues([]);
     const { default: HomePage } =
-      await freshImport<typeof import("@/app/page")>("@/app/page");
+      await typedImport<typeof import("@/app/page")>("@/app/page");
     const tree = await HomePage();
     const html = renderToStaticMarkup(tree);
     expect(html).toContain("first issue is on the way");
@@ -202,7 +202,7 @@ describe("app/page.tsx", () => {
       }),
     ]);
     const { default: HomePage } =
-      await freshImport<typeof import("@/app/page")>("@/app/page");
+      await typedImport<typeof import("@/app/page")>("@/app/page");
     const tree = await HomePage();
     const html = renderToStaticMarkup(tree);
     expect(html).toContain('id="latest-heading"');
@@ -228,7 +228,7 @@ describe("app/page.tsx", () => {
       }),
     ]);
     const { default: HomePage } =
-      await freshImport<typeof import("@/app/page")>("@/app/page");
+      await typedImport<typeof import("@/app/page")>("@/app/page");
     const tree = await HomePage();
     const html = renderToStaticMarkup(tree);
     expect(html).toContain("Earlier issues");
