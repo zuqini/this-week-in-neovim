@@ -12,23 +12,27 @@ export const getAllIssues = memoize(() => loadIssuesFromDir(CONTENT_DIR), {
 
 export const __resetIssuesCacheForTests = getAllIssues.reset;
 
-export function getIssueSlugs(): string[] {
-  return getAllIssues().map((i) => i.slug);
+export function getIssueSlugs(issues: IssueMeta[]): string[] {
+  return issues.map((i) => i.slug);
 }
 
-export function getIssueRouteParams(): Array<{ slug: string }> {
-  return getIssueSlugs().map((slug) => ({ slug }));
+export function getIssueRouteParams(
+  issues: IssueMeta[],
+): Array<{ slug: string }> {
+  return issues.map((i) => ({ slug: i.slug }));
 }
 
-export function getIssueBySlug(slug: string): IssueMeta | null {
-  return getAllIssues().find((i) => i.slug === slug) ?? null;
+export function getIssueBySlug(
+  issues: IssueMeta[],
+  slug: string,
+): IssueMeta | null {
+  return issues.find((i) => i.slug === slug) ?? null;
 }
 
-export function getAdjacent(slug: string): {
-  newer: IssueMeta | null;
-  older: IssueMeta | null;
-} {
-  const issues = getAllIssues();
+export function getAdjacent(
+  issues: IssueMeta[],
+  slug: string,
+): { newer: IssueMeta | null; older: IssueMeta | null } {
   const idx = issues.findIndex((i) => i.slug === slug);
   if (idx === -1) return { newer: null, older: null };
   return {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getAdjacent,
+  getAllIssues,
   getIssueBySlug,
   getIssueRouteParams,
 } from "@/lib/issues";
@@ -12,7 +13,9 @@ import { absoluteUrl, issueHref } from "@/lib/site";
 
 export const dynamicParams = false;
 
-export const generateStaticParams = getIssueRouteParams;
+export function generateStaticParams() {
+  return getIssueRouteParams(getAllIssues());
+}
 
 type Params = Promise<{ slug: string }>;
 
@@ -22,7 +25,7 @@ export async function generateMetadata({
   params: Params;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const issue = getIssueBySlug(slug);
+  const issue = getIssueBySlug(getAllIssues(), slug);
   if (!issue) return {};
   const url = absoluteUrl(issueHref(issue.slug));
   return {
@@ -46,10 +49,11 @@ export async function generateMetadata({
 
 export default async function IssuePage({ params }: { params: Params }) {
   const { slug } = await params;
-  const issue = getIssueBySlug(slug);
+  const issues = getAllIssues();
+  const issue = getIssueBySlug(issues, slug);
   if (!issue) notFound();
 
-  const { older, newer } = getAdjacent(issue.slug);
+  const { older, newer } = getAdjacent(issues, issue.slug);
 
   return (
     <article className="space-y-10">

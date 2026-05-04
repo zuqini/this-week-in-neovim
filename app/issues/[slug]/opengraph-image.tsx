@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { getIssueBySlug, getIssueRouteParams } from "@/lib/issues";
+import {
+  getAllIssues,
+  getIssueBySlug,
+  getIssueRouteParams,
+} from "@/lib/issues";
 import { formatIssueDate } from "@/lib/date";
 import { OG_SIZE, OgIssueCard, renderOg } from "@/lib/og";
 
@@ -9,7 +13,9 @@ export const alt = "This Week in Neovim issue";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 
-export const generateStaticParams = getIssueRouteParams;
+export function generateStaticParams() {
+  return getIssueRouteParams(getAllIssues());
+}
 
 export default async function IssueOpengraphImage({
   params,
@@ -17,7 +23,7 @@ export default async function IssueOpengraphImage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const issue = getIssueBySlug(slug);
+  const issue = getIssueBySlug(getAllIssues(), slug);
   if (!issue) notFound();
 
   return renderOg(

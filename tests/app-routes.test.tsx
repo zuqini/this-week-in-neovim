@@ -96,9 +96,9 @@ describe("app/issues/[slug]/page.tsx", () => {
 
   it("generateStaticParams returns one {slug} per real issue", async () => {
     const page = await import("@/app/issues/[slug]/page");
-    const { getIssueSlugs } = await import("@/lib/issues");
+    const { getAllIssues, getIssueSlugs } = await import("@/lib/issues");
     const params = page.generateStaticParams();
-    expect(params).toEqual(getIssueSlugs().map((slug) => ({ slug })));
+    expect(params).toEqual(getIssueSlugs(getAllIssues()).map((slug) => ({ slug })));
     for (const p of params) {
       expect(typeof p.slug).toBe("string");
     }

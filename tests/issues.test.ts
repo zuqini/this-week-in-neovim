@@ -1,8 +1,11 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import {
+  getAdjacent,
+  getIssueBySlug,
+  getIssueRouteParams,
+  getIssueSlugs,
   loadIssuesFromDir,
   parseIssueMeta,
 } from "@/lib/issues";
@@ -151,7 +154,6 @@ describe("parseIssueMeta", () => {
       ),
     ).toThrow(/Slug\/date mismatch/);
   });
-
 });
 
 describe("loadIssuesFromDir", () => {
@@ -183,51 +185,48 @@ describe("loadIssuesFromDir", () => {
   });
 });
 
-describe("getAdjacent (against fixture content dir)", () => {
-  const originalCwd = process.cwd;
-  const FIXTURE_CWD = fs.mkdtempSync(path.join(os.tmpdir(), "twin-issues-"));
+describe("getAdjacent / getIssueBySlug / getIssueSlugs / getIssueRouteParams (pure)", () => {
+  const issues = loadIssuesFromDir(ISSUES_DIR);
 
-  beforeEach(() => {
-    fs.mkdirSync(path.join(FIXTURE_CWD, "content"), { recursive: true });
-    const link = path.join(FIXTURE_CWD, "content", "issues");
-    if (!fs.existsSync(link)) {
-      fs.symlinkSync(ISSUES_DIR, link, "dir");
-    }
-    process.cwd = () => FIXTURE_CWD;
-    vi.resetModules();
+  it("getIssueSlugs returns slugs in input order", () => {
+    expect(getIssueSlugs(issues)).toEqual([
+      "2026-01-19-tied",
+      "2026-01-19",
+      "2026-01-12",
+      "2026-01-05",
+    ]);
   });
 
-  afterEach(async () => {
-    const { __resetIssuesCacheForTests } = await import("@/lib/issues");
-    __resetIssuesCacheForTests();
-    process.cwd = originalCwd;
-    vi.resetModules();
+  it("getIssueRouteParams wraps each slug in a {slug} object", () => {
+    expect(getIssueRouteParams(issues)).toEqual(
+      issues.map((i) => ({ slug: i.slug })),
+    );
   });
 
-  afterAll(() => {
-    fs.rmSync(FIXTURE_CWD, { recursive: true, force: true });
+  it("getIssueBySlug returns the matching issue or null", () => {
+    expect(getIssueBySlug(issues, "2026-01-12")?.issue).toBe(2);
+    expect(getIssueBySlug(issues, "nope")).toBeNull();
   });
 
-  it("returns older/newer for a middle slug", async () => {
-    const { getAdjacent } = await import("@/lib/issues");
-    const { older, newer } = getAdjacent("2026-01-12");
+  it("getAdjacent returns older/newer for a middle slug", () => {
+    const { older, newer } = getAdjacent(issues, "2026-01-12");
     expect(newer?.slug).toBe("2026-01-19");
     expect(older?.slug).toBe("2026-01-05");
   });
 
-  it("returns null for newest's newer", async () => {
-    const { getAdjacent } = await import("@/lib/issues");
-    expect(getAdjacent("2026-01-19-tied").newer).toBeNull();
+  it("getAdjacent returns null newer for the newest slug", () => {
+    expect(getAdjacent(issues, "2026-01-19-tied").newer).toBeNull();
   });
 
-  it("returns null for oldest's older", async () => {
-    const { getAdjacent } = await import("@/lib/issues");
-    expect(getAdjacent("2026-01-05").older).toBeNull();
+  it("getAdjacent returns null older for the oldest slug", () => {
+    expect(getAdjacent(issues, "2026-01-05").older).toBeNull();
   });
 
-  it("returns nulls for unknown slug", async () => {
-    const { getAdjacent } = await import("@/lib/issues");
-    expect(getAdjacent("nope")).toEqual({ newer: null, older: null });
+  it("getAdjacent returns nulls for an unknown slug", () => {
+    expect(getAdjacent(issues, "nope")).toEqual({
+      newer: null,
+      older: null,
+    });
   });
 });
 
@@ -270,29 +269,6 @@ describe("getAllIssues + production caching", () => {
   });
 });
 
-describe("getIssueSlugs / getIssueBySlug / getAdjacent", () => {
-  it("getIssueSlugs preserves getAllIssues order", async () => {
-    const { getAllIssues, getIssueSlugs } = await import("@/lib/issues");
-    expect(getIssueSlugs()).toEqual(getAllIssues().map((i) => i.slug));
-  });
-
-  it("getIssueBySlug returns the meta for a known slug, null otherwise", async () => {
-    const { getIssueBySlug } = await import("@/lib/issues");
-    expect(getIssueBySlug("2026-05-04")?.slug).toBe("2026-05-04");
-    expect(getIssueBySlug("not-a-real-slug")).toBeNull();
-  });
-
-  it("getAdjacent for the newest slug returns null newer and an older if any", async () => {
-    const { getAllIssues, getAdjacent } = await import("@/lib/issues");
-    const all = getAllIssues();
-    const target = all[0]?.slug;
-    expect(target).toBeDefined();
-    const { newer, older } = getAdjacent(target!);
-    expect(newer).toBeNull();
-    expect(older?.slug ?? null).toBe(all[1]?.slug ?? null);
-  });
-});
-
 describe("loadIssueBody", () => {
   it("rejects slugs containing path separators", async () => {
     await expect(loadIssueBody("../foo")).rejects.toThrow(/Invalid issue slug/);
@@ -312,4 +288,3 @@ describe("loadIssueBody", () => {
     await expect(loadIssueBody("2026-01-19-Bad_Suffix")).rejects.toThrow(/Invalid issue slug/);
   });
 });
-
