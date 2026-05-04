@@ -8,7 +8,7 @@ function isExternal(href: string | undefined): boolean {
   try {
     return new URL(href).host !== siteHost();
   } catch {
-    return false;
+    return true;
   }
 }
 

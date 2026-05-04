@@ -16,7 +16,12 @@
   --color-muted: var(--muted);
 }
 
-/* mirror lib/theme.ts PALETTE */
+/*
+ * Page-render palette. lib/theme.ts is OG-only (viewport themeColor + the
+ * server-rendered OG card via satori, which can't read CSS variables).
+ * Only --bg in each scheme mirrors PALETTE.bgLight/bgDark (consumed by
+ * layout.tsx viewport.themeColor) — the rest are CSS-only.
+ */
 :root {
   --fg: #29332f;
   --bg: #e7eee8;

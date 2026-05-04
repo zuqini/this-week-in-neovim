@@ -56,7 +56,7 @@ const FRAME_STYLE = {
   flexDirection: "column" as const,
   justifyContent: "space-between" as const,
   padding: "72px 80px",
-  background: `linear-gradient(135deg, ${PALETTE.bgDark} 0%, #0b151b 60%, #0f2a23 100%)`,
+  background: `linear-gradient(135deg, ${PALETTE.bgDark} 0%, ${PALETTE.bgGradientMid} 60%, ${PALETTE.bgGradientEnd} 100%)`,
   color: PALETTE.fgDark,
   fontFamily: "Inter",
 };

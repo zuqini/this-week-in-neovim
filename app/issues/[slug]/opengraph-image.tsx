@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
+import { notFound } from "next/navigation";
 import { getIssueBySlug, getIssueSlugs } from "@/lib/issues";
 import { formatIssueDate } from "@/lib/date";
-import { SITE } from "@/lib/site";
 import { OG_SIZE, OgIssueCard, getOgFonts } from "@/lib/og";
 
 export const dynamic = "force-static";
@@ -21,13 +21,14 @@ export default async function IssueOpengraphImage({
 }) {
   const { slug } = await params;
   const issue = getIssueBySlug(slug);
+  if (!issue) notFound();
 
   return new ImageResponse(
     (
       <OgIssueCard
-        title={issue?.title ?? SITE.name}
-        issueNumber={issue?.issue ?? 0}
-        date={issue ? formatIssueDate(issue.date) : ""}
+        title={issue.title}
+        issueNumber={issue.issue}
+        date={formatIssueDate(issue.date)}
       />
     ),
     { ...size, fonts: getOgFonts() },

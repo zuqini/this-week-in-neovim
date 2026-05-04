@@ -1,5 +1,20 @@
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
 export function issueDate(iso: string): Date {
   if (!ISO_DATE.test(iso)) {
     throw new Error(
@@ -10,10 +25,6 @@ export function issueDate(iso: string): Date {
 }
 
 export function formatIssueDate(iso: string): string {
-  return issueDate(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+  const d = issueDate(iso);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }

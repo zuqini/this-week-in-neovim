@@ -62,3 +62,40 @@ describe("siteHost", () => {
     expect(siteHost()).toBe("localhost:3000");
   });
 });
+
+describe("SITE.url validation", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("throws at module load when NEXT_PUBLIC_SITE_URL is missing a scheme", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "thisweekinneovim.org");
+    await expect(import("@/lib/site")).rejects.toThrow(
+      /NEXT_PUBLIC_SITE_URL is not a valid absolute URL/,
+    );
+  });
+});
+
+describe("PALETTE / globals.css mirror", () => {
+  it("PALETTE.bgLight and PALETTE.bgDark match the --bg values in globals.css", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const css = fs.readFileSync(
+      path.join(process.cwd(), "app", "globals.css"),
+      "utf8",
+    );
+    const { PALETTE } = await import("@/lib/theme");
+
+    const lightBgRoot = css.match(/:root\s*\{[^}]*--bg:\s*([^;]+);/);
+    expect(lightBgRoot?.[1]?.trim()).toBe(PALETTE.bgLight);
+
+    const darkBg = css.match(
+      /prefers-color-scheme:\s*dark\)[\s\S]*?--bg:\s*([^;]+);/,
+    );
+    expect(darkBg?.[1]?.trim()).toBe(PALETTE.bgDark);
+  });
+});
