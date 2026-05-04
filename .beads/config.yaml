@@ -54,3 +54,5 @@
 # - github.repo
 
 sync.remote: "git+https://github.com/zuqini/this-week-in-neovim.git"
+
+validation.on-create: "warn"

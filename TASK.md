@@ -62,40 +62,39 @@ lib/issues.ts             # fs.readdir + gray-matter + Zod, server-only
 ```
 `generateStaticParams` reads the `content/issues/` directory; `dynamicParams = false` so anything not in the index 404s. Issue list helpers (`getAllIssues`, `getIssueBySlug`) are server-only and tree-shaken out of the client bundle.
 
-### Weekly pipeline (separate package, `pipeline/`)
-TypeScript (Node 22, same toolchain as the site), invoked from a GitHub Actions cron. Stages:
-1. **Scrape** — one adapter per source. Prefer RSS/APIs over HTML to respect ToS:
-   - r/neovim → `https://www.reddit.com/r/neovim/.rss`
+### Weekly pipeline (lives in `pipeline/`, invoked by an LLM harness)
+TypeScript (Node 22, same toolchain as the site). The pipeline is a set of small CLIs the **LLM drafting harness** invokes as bash tools during a weekly drafting session — not a GH Actions cron job. The harness orchestrates: run scrapers → run enricher → read enriched JSON → draft MDX → self-eval → open PR. Stages:
+1. **Scrape** — one CLI per source. Each scraper writes `pipeline/data/raw/<YYYY-MM-DD>/<source>.json` (UTC date, idempotent on re-run). Prefer official APIs/JSON over HTML scraping to respect ToS:
+   - r/neovim → `https://www.reddit.com/r/{sub}/top.json` with identifying User-Agent (load-bearing); migrate to OAuth client_credentials when the registered Reddit app is approved.
    - GitHub trending Lua (Neovim plugins) → GitHub Search API (`q=topic:neovim-plugin pushed:>last-week sort:stars`)
    - awesome-neovim newly-added → diff `README.md` over the last 7 days via `git log -p`
    - Plugin author RSS feeds → curated list in `pipeline/sources.yml`
    - Optional: YouTube channel feeds (TJ DeVries, ThePrimeagen) for "Notable posts & videos"
-   Output: `pipeline/data/raw/<date>/<source>.json` — raw artifacts, committed for traceability.
-2. **Normalize** — strip HTML, dedupe, classify each item into a section bucket. Output: `pipeline/data/normalized/<date>.json`.
-3. **Draft** — single Claude (Sonnet 4.6) call. Prompt template: rules + section schema + normalized JSON. Strict instruction: "Only summarize content provided in `<sources>`; if a fact isn't there, omit it. Every bullet must end with `[^sN]` where N is a source id." Output: `content/issues/<date>.draft.mdx`.
-4. **Eval** — two passes, both must succeed before a PR is opened:
-   - **Programmatic**: every `[^sN]` resolves to a real `sources` entry; no bullet without a citation; all source URLs return 200; word count within bounds.
-   - **LLM-as-judge** (Claude Opus): faithfulness scoring — for each bullet, does the cited source actually support the claim? Reject if score < threshold; the rejected bullets get logged into the PR description for the human reviewer.
-5. **PR** — `gh pr create` against `main` with the draft MDX, raw artifacts as commit, eval report in body. Human reviews the diff (this is the editorial pass), merges Sunday.
-6. **Publish** — merge to `main` triggers the build workflow → static export → deploy.
+2. **Enrich** — source-agnostic CLI that walks each item's URL: GitHub repos → fetch `raw.githubusercontent.com/.../README.md`; blog posts → fetch + Readability extract → markdown; videos (v.redd.it, youtube) → marked as "content unavailable for citation". Output: `pipeline/data/enriched/<date>/<source>.json`. Without enrichment, link posts collapse to titles and the LLM has nothing substantive to cite — this stage is what makes "great" vs "thin" issues.
+3. **Draft** — the harness LLM (Claude Sonnet 4.6 or Opus 4.7) reads the enriched JSON directly, drafts the MDX with strict instruction: "Only summarize content provided in the enriched payloads; if a fact isn't there, omit it. Every bullet must end with `[^sN]` where N is a source id." Output: `content/issues/<date>.draft.mdx`.
+4. **Self-eval** — the harness invokes two checks before opening a PR:
+   - **Programmatic** (CLI): every `[^sN]` resolves to a real `sources` entry; no bullet without a citation; all source URLs return 200; word count within bounds.
+   - **LLM-as-judge** (separate Claude call): faithfulness scoring — for each bullet, does the cited source actually support the claim? Rejected bullets get logged into the PR description for the human reviewer.
+5. **PR** — harness invokes `gh pr create` against `main` with the draft MDX, optionally git-add'd raw/enriched artifacts (per editorial choice — `pipeline/data/` is gitignored by default), eval report in body. Human reviews the diff (this is the editorial pass), merges Sunday.
+6. **Publish** — merge to `main` triggers the GH Actions build workflow → static export → deploy. (This is the only GH Actions piece; the weekly drafting flow is harness-driven.)
 
 ### Faithfulness guardrails (this is the main risk per Notes)
-- LLM input is the normalized JSON only — no general knowledge, no web access during drafting.
-- Citation-or-omit rule enforced both in the prompt and in eval; a bullet without a working `[^sN]` fails CI.
-- The PR diff *is* the editorial surface. Reviewer sees: changed MDX, raw scrape artifacts, eval report. No LLM output ever auto-merges.
-- If the eval rejects too many bullets, the workflow opens a PR with a draft tagged `needs-rewrite` instead of failing silently — better to have a starting point than nothing.
+- LLM input is the enriched JSON only — no general knowledge, no web access during drafting beyond what the scraper+enricher already fetched.
+- Citation-or-omit rule enforced both in the prompt and in eval; a bullet without a working `[^sN]` blocks the PR.
+- The PR diff *is* the editorial surface. Reviewer sees: changed MDX, optionally git-add'd scrape/enriched artifacts, eval report. No LLM output ever auto-merges.
+- If the eval rejects too many bullets, the harness opens a PR with a draft tagged `needs-rewrite` instead of dropping the run — better to have a starting point than nothing.
 
 ### Deploy & ops
 - **Hosting**: Cloudflare Pages (free tier, fast global CDN, deploys from GH Actions artifact). GH Pages is a fine fallback. Vercel works but is overkill for a static export.
-- **Workflows**:
-  - `.github/workflows/site.yml` — on push to `main`: `pnpm build` → upload `out/` to Cloudflare Pages.
-  - `.github/workflows/weekly.yml` — `cron: "0 14 * * 6"` (Saturday 14:00 UTC): runs the pipeline, opens PR. Manual `workflow_dispatch` for testing.
-- **Secrets**: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` (auto), `CLOUDFLARE_API_TOKEN`.
+- **GH Actions** — only one workflow: `.github/workflows/site.yml` on push to `main`: `pnpm build` → upload `out/` to Cloudflare Pages. No weekly cron — the drafting pipeline is invoked by an LLM harness from the user's machine (or wherever the harness runs).
+- **Secrets** — split by where they're consumed:
+  - GH Actions: `CLOUDFLARE_API_TOKEN` (deploy only).
+  - LLM harness host (local `.env` or shell config): `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` (for `gh pr create`), and eventually `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` when the OAuth migration lands.
 
 ### Phasing (ship the site before automating it)
 1. **Phase 1 — Site shell.** Next.js scaffold, palette ported, layout/nav/footer, archive page, one hand-written issue, RSS, sitemap, OG cards, deploy to Cloudflare Pages. Done = a real URL with one real post.
-2. **Phase 2 — Pipeline, manual trigger.** Scrapers + normalize + draft + eval, run locally with `pnpm pipeline:run`. Output a draft MDX a human edits and commits by hand. Validates the prompt and eval before adding cron.
-3. **Phase 3 — Cron + PR automation.** Move to scheduled GH Action with PR creation. Enable weekly cadence.
+2. **Phase 2 — Pipeline CLIs, harness-invoked.** Scrapers (Reddit first) + enricher + programmatic eval, runnable as `pnpm pipeline:scrape:reddit` etc. The LLM harness orchestrates a weekly drafting session that produces a draft MDX + opens a PR. Validates the full loop before any scheduling.
+3. **Phase 3 — Scheduling.** A cron (or a `/loop`-style routine) kicks off the harness on a weekly cadence. The schedule lives in the harness layer, not in this repo.
 4. **Phase 4 — Polish.** Manual theme toggle, search (Pagefind — it indexes the static `out/` directory and needs no backend), per-section RSS, plugin-name autocomplete in archive.
 
 ### Open questions to resolve before Phase 1
