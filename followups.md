@@ -2,8 +2,8 @@
 
 The 31-item list from the original 2026-05-03 architecture + code review has been
 worked through. Most items are now closed in code; the remaining items are
-either **deferred** with a stated reason (see `docs/skipped_tasks.md` for the
-full deferral log) or are tracked in beads.
+either **deferred** with a stated reason (see `.claude/review-decisions.md` for
+the full deferral log) or are tracked in beads.
 
 Run `bd ready` for actionable work and `bd list --status=open` for the full
 backlog.
@@ -27,10 +27,10 @@ then this fix pass) closed the remaining backlog items end-to-end:
 - `pi9` — landed (`loadIssueBody` moved to `lib/issues/body.ts`)
 - `37z` (`getAllIssues` singleton retirement) — partial; helper consolidation
   shipped, full composition-root retirement deferred. See
-  `docs/skipped_tasks.md`.
+  `.claude/review-decisions.md`.
 - `k5p` (test helper consolidation) — landed alongside `37z` partial.
 
 ## See also
 
-- `docs/skipped_tasks.md` — every review finding investigated but not fixed,
-  with rationale.
+- `.claude/review-decisions.md` — every review finding investigated but not
+  fixed, with rationale (consumed by `/review` and `/arch-review`).
