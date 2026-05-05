@@ -62,7 +62,7 @@ export function classify(rawUrl: string): LinkKind {
     return { kind: "video", url: rawUrl };
   }
 
-  if (REDDIT_HOSTS.has(host) && /^\/r\/[^/]+\/comments\//.test(url.pathname)) {
+  if (REDDIT_HOSTS.has(host)) {
     return { kind: "reddit-self", url: rawUrl };
   }
 

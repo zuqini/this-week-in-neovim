@@ -57,6 +57,12 @@ describe("classify", () => {
     expect(k).toEqual({ kind: "reddit-self", url });
   });
 
+  it("classifies reddit gallery / user / any reddit-hosted url as reddit-self", () => {
+    expect(classify("https://www.reddit.com/gallery/abc123").kind).toBe("reddit-self");
+    expect(classify("https://www.reddit.com/user/someone/").kind).toBe("reddit-self");
+    expect(classify("https://old.reddit.com/r/neovim/").kind).toBe("reddit-self");
+  });
+
   it("classifies generic blogs as html-article", () => {
     const k = classify("https://example.com/posts/2026/great-post");
     expect(k).toEqual({ kind: "html-article", url: "https://example.com/posts/2026/great-post" });
