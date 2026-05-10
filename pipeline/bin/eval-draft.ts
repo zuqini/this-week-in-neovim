@@ -1,10 +1,17 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import matter from "gray-matter";
+import type { IssueMeta } from "../../lib/issues/schema.js";
 import { parseIssueMeta } from "../../lib/issues/schema.js";
 import { evalDraft, type EvalReport } from "../src/eval/index.js";
+import {
+  createAnthropicClient,
+  evaluateFaithfulness,
+  type FaithfulnessReport,
+  type SourceText,
+} from "../src/eval/faithfulness.js";
 
 interface CliArgs {
   mdxPath: string;
@@ -12,6 +19,9 @@ interface CliArgs {
   maxWords?: number;
   skipLinks: boolean;
   concurrency?: number;
+  faithfulness: boolean;
+  enrichedDir?: string;
+  faithfulnessModel?: string;
 }
 
 type ParseResult = { ok: true; args: CliArgs } | { ok: false; error: string };
@@ -21,8 +31,8 @@ function parseArgs(argv: string[]): ParseResult {
   let positional: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--skip-links") {
-      args.set("skip-links", "true");
+    if (a === "--skip-links" || a === "--faithfulness") {
+      args.set(a.slice(2), "true");
       continue;
     }
     if (a.startsWith("--")) {
@@ -42,11 +52,19 @@ function parseArgs(argv: string[]): ParseResult {
     return {
       ok: false,
       error:
-        "usage: eval-draft <mdx-path> [--min-words N] [--max-words N] [--skip-links] [--concurrency N]",
+        "usage: eval-draft <mdx-path> [--min-words N] [--max-words N] [--skip-links] [--concurrency N] [--faithfulness --enriched-dir <path> [--faithfulness-model <id>]]",
     };
   }
   const num = (key: string): number | undefined =>
     args.has(key) ? Number(args.get(key)) : undefined;
+  const faithfulness = args.get("faithfulness") === "true";
+  const enrichedDir = args.get("enriched-dir");
+  if (faithfulness && !enrichedDir) {
+    return {
+      ok: false,
+      error: "--faithfulness requires --enriched-dir <path>",
+    };
+  }
   return {
     ok: true,
     args: {
@@ -55,6 +73,9 @@ function parseArgs(argv: string[]): ParseResult {
       maxWords: num("max-words"),
       skipLinks: args.get("skip-links") === "true",
       concurrency: num("concurrency"),
+      faithfulness,
+      enrichedDir,
+      faithfulnessModel: args.get("faithfulness-model"),
     },
   };
 }
@@ -79,7 +100,7 @@ export async function runCli(argv: string[]): Promise<number> {
     return 1;
   }
 
-  let meta;
+  let meta: IssueMeta;
   try {
     meta = parseIssueMeta(raw, slug);
   } catch (err) {
@@ -95,11 +116,74 @@ export async function runCli(argv: string[]): Promise<number> {
     concurrency: parsed.args.concurrency,
   });
 
-  printReport(report);
-  return report.ok ? 0 : 1;
+  let faithfulness: FaithfulnessReport | null = null;
+  if (parsed.args.faithfulness) {
+    let sources: Map<string, SourceText>;
+    try {
+      sources = await loadSourceContent(parsed.args.enrichedDir!, meta);
+    } catch (err) {
+      process.stderr.write(`eval-draft: ${formatErr(err)}\n`);
+      return 1;
+    }
+    try {
+      faithfulness = await evaluateFaithfulness(content, sources, {
+        client: createAnthropicClient(),
+        model: parsed.args.faithfulnessModel,
+      });
+    } catch (err) {
+      process.stderr.write(`eval-draft: faithfulness: ${formatErr(err)}\n`);
+      return 1;
+    }
+  }
+
+  printReport(report, faithfulness);
+  const ok = report.ok && (faithfulness === null || faithfulness.ok);
+  return ok ? 0 : 1;
 }
 
-function printReport(report: EvalReport): void {
+async function loadSourceContent(
+  enrichedDir: string,
+  meta: IssueMeta,
+): Promise<Map<string, SourceText>> {
+  let entries: string[];
+  try {
+    entries = await readdir(enrichedDir);
+  } catch (err) {
+    throw new Error(`cannot read enriched dir ${enrichedDir}: ${formatErr(err)}`);
+  }
+  const urlToText = new Map<string, string>();
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const raw = await readFile(path.join(enrichedDir, entry), "utf8");
+    const parsed = JSON.parse(raw);
+    const items = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as { items?: unknown }).items)
+        ? (parsed as { items: unknown[] }).items
+        : [];
+    for (const raw of items) {
+      const item = raw as { url?: unknown; linkedContent?: unknown };
+      if (typeof item.url !== "string") continue;
+      const lc = item.linkedContent as { content?: unknown } | null | undefined;
+      if (lc && typeof lc.content === "string") {
+        urlToText.set(item.url, lc.content);
+      }
+    }
+  }
+  const result = new Map<string, SourceText>();
+  for (const source of meta.sources) {
+    const text = urlToText.get(source.url);
+    if (text !== undefined) {
+      result.set(source.id, { id: source.id, url: source.url, text });
+    }
+  }
+  return result;
+}
+
+function printReport(
+  report: EvalReport,
+  faithfulness: FaithfulnessReport | null,
+): void {
   if (!report.citations.ok) {
     process.stderr.write("citations:\n");
     for (const e of report.citations.errors) {
@@ -122,14 +206,36 @@ function printReport(report: EvalReport): void {
       process.stderr.write(`  - ${f.url}: ${detail}\n`);
     }
   }
-  if (report.ok) {
+  if (faithfulness && !faithfulness.ok) {
+    const bad = faithfulness.bullets.filter((b) => !b.faithful);
+    process.stderr.write(`faithfulness: ${bad.length}/${faithfulness.bullets.length} unfaithful\n`);
+    for (const b of bad) {
+      process.stderr.write(`  - [^${b.citation}] ${truncate(b.text, 80)}: ${b.reason}\n`);
+    }
+  }
+  if (faithfulness) {
+    const u = faithfulness.usage;
+    process.stderr.write(
+      `faithfulness usage: input=${u.input}, output=${u.output}, cache_read=${u.cacheRead}, cache_creation=${u.cacheCreation}\n`,
+    );
+  }
+
+  const ok = report.ok && (faithfulness === null || faithfulness.ok);
+  if (ok) {
     const linksLine = report.links.skipped
       ? "links: skipped"
       : `links: ${report.links.total} ok`;
+    const fLine = faithfulness
+      ? `, faithfulness: ${faithfulness.bullets.length} ok`
+      : "";
     process.stdout.write(
-      `eval-draft: ok (citations: ok, words: ${wc.count} in [${wc.min}, ${wc.max}], ${linksLine})\n`,
+      `eval-draft: ok (citations: ok, words: ${wc.count} in [${wc.min}, ${wc.max}], ${linksLine}${fLine})\n`,
     );
   }
+}
+
+function truncate(s: string, n: number): string {
+  return s.length <= n ? s : s.slice(0, n - 1) + "…";
 }
 
 function formatErr(err: unknown): string {

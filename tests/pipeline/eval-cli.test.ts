@@ -133,4 +133,15 @@ describe("eval-draft CLI", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("usage:");
   });
+
+  it("exits 1 when --faithfulness is set without --enriched-dir", async () => {
+    const file = path.join(workdir, "2026-05-04.mdx");
+    await writeFile(
+      file,
+      FRONTMATTER([{ id: "s1", url: "https://a.example/" }]) + PROSE(),
+    );
+    const code = await runCli([file, "--skip-links", "--faithfulness"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("--enriched-dir");
+  });
 });
