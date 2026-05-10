@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "pipeline:enrich:links": "tsx pipeline/bin/enrich-links.ts",
+    "pipeline:eval:draft": "tsx pipeline/bin/eval-draft.ts",
     "pipeline:scrape:reddit": "tsx pipeline/bin/scrape-reddit.ts"
   },
   "dependencies": {
