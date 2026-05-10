@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import matter from "gray-matter";
 import { parseIssueMeta } from "@/lib/issues";
+import { validateCitations } from "@/lib/citations";
 
 const CONTENT_DIR = path.join(import.meta.dirname, "..", "content", "issues");
 
@@ -19,6 +21,23 @@ describe("content/issues/*.mdx", () => {
       const slug = file.replace(/\.mdx$/, "");
       const raw = fs.readFileSync(path.join(CONTENT_DIR, file), "utf8");
       expect(() => parseIssueMeta(raw, slug)).not.toThrow();
+    }
+  });
+
+  it("every citation resolves to a source and every source is cited", () => {
+    const files = fs
+      .readdirSync(CONTENT_DIR)
+      .filter((f) => f.endsWith(".mdx"));
+    for (const file of files) {
+      const slug = file.replace(/\.mdx$/, "");
+      const raw = fs.readFileSync(path.join(CONTENT_DIR, file), "utf8");
+      const meta = parseIssueMeta(raw, slug);
+      const { content } = matter(raw);
+      const result = validateCitations(meta, content);
+      expect(
+        result,
+        `${file}: ${result.ok ? "" : result.errors.join("\n")}`,
+      ).toEqual({ ok: true, errors: [] });
     }
   });
 });
