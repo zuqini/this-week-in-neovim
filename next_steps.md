@@ -4,7 +4,7 @@ Compass for the next agent picking up this project. **bd is the source of truth*
 
 ## Where things stand (2026-05-10)
 
-- **Phase 1 (citation-first static site)**: shipped. Next.js 16 `output: "export"`, one MDX issue live (`content/issues/2026-05-04.mdx`), deploys to Cloudflare Pages on push to `main`.
+- **Phase 1 (citation-first static site)**: shipped. Next.js 16 `output: "export"`, one MDX issue live (`content/issues/2026-05-04.mdx`). Cloudflare Pages deploys via the **Pages Git integration** (not the GH Actions wrangler step — that's gone). Framework preset is **None**, build `pnpm run build`, output dir `out`. Pushes to `main` deploy to production; PRs get preview URLs automatically.
 - **Phase 2 P1 chain**: shipped. `6tn` (CI fix), `f3l` (citation validator), `y97` (draft-eval CLI: citations + URL liveness + word count), `193` (LLM-as-judge faithfulness with prompt caching). The harness can now run `pnpm pipeline:eval:draft <mdx> [--faithfulness --enriched-dir <path>]` and gate on the result.
 - **Phase 2 remaining**: drafting (LLM writes MDX from enriched JSON) and the PR-open glue. Neither is filed as a P1 yet — see backlog.
 
@@ -15,7 +15,8 @@ Pick from `bd ready` — nothing is blocking deploys. Suggested order:
 1. **`this-week-in-neovim-w5b`** — End-to-end harness-equivalent integration test. Was blocked on `f3l`; now unblocked. Worth doing before drafting/PR-open lands so the seam stays honest.
 2. **`this-week-in-neovim-1ra`** — Move `DEFAULT_USER_AGENT` out of `reddit/client.ts`. Mechanical 30-min refactor; the enrich modules already import it from there awkwardly.
 3. **`this-week-in-neovim-4oj`** / **`this-week-in-neovim-der`** — `RawScrapePayload` envelope and Zod-validate Reddit payload. Pipeline robustness.
-4. **`this-week-in-neovim-149`** — Cloudflare per-PR preview deploys. Becomes important the moment auto-PRs land.
+
+Not on the list: there is no longer a P1 for drafting or PR-open. File those before starting Phase 2 work so dependencies wire up correctly.
 
 ## P3 backlog
 
