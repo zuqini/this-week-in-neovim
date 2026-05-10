@@ -1,8 +1,10 @@
 export type LinkKind =
   | { kind: "github-readme"; owner: string; repo: string; ref?: string }
+  | { kind: "github-release"; url: string }
   | { kind: "html-article"; url: string }
   | { kind: "video"; url: string }
   | { kind: "reddit-self"; url: string }
+  | { kind: "reddit-media"; url: string }
   | { kind: "unknown"; url: string };
 
 const VIDEO_HOSTS = new Set([
@@ -13,6 +15,12 @@ const VIDEO_HOSTS = new Set([
   "youtu.be",
   "vimeo.com",
   "www.vimeo.com",
+]);
+
+const REDDIT_MEDIA_HOSTS = new Set([
+  "i.redd.it",
+  "preview.redd.it",
+  "external-preview.redd.it",
 ]);
 
 const REDDIT_HOSTS = new Set([
@@ -62,6 +70,10 @@ export function classify(rawUrl: string): LinkKind {
     return { kind: "video", url: rawUrl };
   }
 
+  if (REDDIT_MEDIA_HOSTS.has(host)) {
+    return { kind: "reddit-media", url: rawUrl };
+  }
+
   if (REDDIT_HOSTS.has(host)) {
     return { kind: "reddit-self", url: rawUrl };
   }
@@ -72,6 +84,9 @@ export function classify(rawUrl: string): LinkKind {
       const [owner, repo, maybeTree, ...refParts] = segments;
       if (!GITHUB_NON_REPO_PATHS.has(owner.toLowerCase())) {
         const cleanRepo = repo.replace(/\.git$/i, "");
+        if (maybeTree === "releases") {
+          return { kind: "github-release", url: rawUrl };
+        }
         if (maybeTree === "tree" && refParts.length > 0) {
           return {
             kind: "github-readme",

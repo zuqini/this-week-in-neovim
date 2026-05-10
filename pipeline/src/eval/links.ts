@@ -1,4 +1,4 @@
-import { DEFAULT_USER_AGENT } from "../sources/reddit/client.js";
+import { DEFAULT_USER_AGENT } from "../http.js";
 
 export interface CheckUrlsOpts {
   fetch?: typeof fetch;

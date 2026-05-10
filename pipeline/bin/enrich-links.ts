@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { enrichBatch, type EnrichedItem } from "../src/enrich/run.js";
 import type { EnrichItem } from "../src/enrich/index.js";
+import { rawScrapeEnvelopeSchema } from "../src/types.js";
 
 interface CliArgs {
   date: string;
@@ -47,31 +48,23 @@ function defaultUtcDate(): string {
 
 interface FilePayload {
   items: EnrichItem[];
-  raw: unknown;
-  itemsKey: string | null;
+  envelope: Record<string, unknown>;
 }
 
-function extractItems(raw: unknown): FilePayload {
-  if (Array.isArray(raw)) {
-    return { items: raw as EnrichItem[], raw, itemsKey: null };
+function parsePayload(file: string, raw: unknown): FilePayload {
+  const parsed = rawScrapeEnvelopeSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const path = issue.path.length === 0 ? "(root)" : issue.path.join(".");
+    throw new Error(`${file}: invalid scrape envelope at ${path}: ${issue.message}`);
   }
-  if (raw && typeof raw === "object") {
-    const obj = raw as Record<string, unknown>;
-    for (const key of ["items", "posts", "results"]) {
-      const v = obj[key];
-      if (Array.isArray(v)) {
-        return { items: v as EnrichItem[], raw, itemsKey: key };
-      }
-    }
-  }
-  return { items: [], raw, itemsKey: null };
+  const env = parsed.data as Record<string, unknown>;
+  const items = env.items as unknown as EnrichItem[];
+  return { items, envelope: env };
 }
 
 function rebuildPayload(payload: FilePayload, enriched: EnrichedItem[]): unknown {
-  if (payload.itemsKey === null) {
-    return enriched;
-  }
-  return { ...(payload.raw as Record<string, unknown>), [payload.itemsKey]: enriched };
+  return { ...payload.envelope, items: enriched };
 }
 
 function isAlreadyEnriched(item: EnrichItem): boolean {
@@ -121,7 +114,7 @@ export async function runCli(argv: string[]): Promise<number> {
     let existing: EnrichedItem[] = [];
     try {
       const prior = JSON.parse(await readFile(outPath, "utf8"));
-      existing = extractItems(prior).items as EnrichedItem[];
+      existing = parsePayload(file, prior).items as EnrichedItem[];
     } catch {
       existing = [];
     }
@@ -130,7 +123,13 @@ export async function runCli(argv: string[]): Promise<number> {
       if (isAlreadyEnriched(e)) existingByUrl.set(e.url, e);
     }
 
-    const payload = extractItems(parsedIn);
+    let payload: FilePayload;
+    try {
+      payload = parsePayload(file, parsedIn);
+    } catch (err) {
+      process.stderr.write(`enrich-links: ${formatErr(err)}\n`);
+      return 1;
+    }
     const toEnrich: { item: EnrichItem; idx: number }[] = [];
     const merged: EnrichedItem[] = new Array(payload.items.length);
     let perFileSkipped = 0;

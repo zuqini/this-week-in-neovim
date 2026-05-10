@@ -37,6 +37,26 @@ describe("enrich (dispatch)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("returns a github-release stub for /releases/tag/* without fetching", async () => {
+    const fetchMock = vi.fn();
+    const out = await enrich(
+      { url: "https://github.com/neovim/neovim/releases/tag/nightly" },
+      { fetch: fetchMock },
+    );
+    expect(out?.kind).toBe("github-release");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a reddit-media stub for i.redd.it without fetching", async () => {
+    const fetchMock = vi.fn();
+    const out = await enrich(
+      { url: "https://i.redd.it/jkxlq4yco20h1.png" },
+      { fetch: fetchMock },
+    );
+    expect(out?.kind).toBe("reddit-media");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns a reddit-self stub for /r/.../comments/...", async () => {
     const fetchMock = vi.fn();
     const out = await enrich(

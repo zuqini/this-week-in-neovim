@@ -51,6 +51,31 @@ describe("classify", () => {
     expect(classify("https://vimeo.com/123456").kind).toBe("video");
   });
 
+  it("classifies github.com/.../releases/tag/<tag> as github-release", () => {
+    const url = "https://github.com/neovim/neovim/releases/tag/nightly";
+    expect(classify(url)).toEqual({ kind: "github-release", url });
+  });
+
+  it("classifies github.com/.../releases without a tag as github-release", () => {
+    const url = "https://github.com/neovim/neovim/releases";
+    expect(classify(url)).toEqual({ kind: "github-release", url });
+  });
+
+  it("classifies i.redd.it as reddit-media", () => {
+    const url = "https://i.redd.it/jkxlq4yco20h1.png";
+    expect(classify(url)).toEqual({ kind: "reddit-media", url });
+  });
+
+  it("classifies preview.redd.it as reddit-media", () => {
+    const url = "https://preview.redd.it/abc123.jpg?width=640";
+    expect(classify(url)).toEqual({ kind: "reddit-media", url });
+  });
+
+  it("classifies external-preview.redd.it as reddit-media", () => {
+    const url = "https://external-preview.redd.it/xyz.jpg";
+    expect(classify(url)).toEqual({ kind: "reddit-media", url });
+  });
+
   it("classifies www.reddit.com /r/.../comments/... as reddit-self", () => {
     const url = "https://www.reddit.com/r/neovim/comments/abc123/title_slug/";
     const k = classify(url);

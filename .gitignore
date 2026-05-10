@@ -18,6 +18,7 @@ next-env.d.ts
 *.tsbuildinfo
 
 pipeline/data/
+pipeline/.cache/
 
 # Beads / Dolt files (added by bd init)
 .dolt/

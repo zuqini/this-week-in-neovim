@@ -22,8 +22,7 @@ export interface DefaultClientOpts {
   userAgent?: string;
 }
 
-export const DEFAULT_USER_AGENT =
-  "this-week-in-neovim/0.1 (https://github.com/zuqini/this-week-in-neovim)";
+import { DEFAULT_USER_AGENT } from "../../http.js";
 
 const RATE_LIMIT_GAP_MS = 1000;
 const MAX_ATTEMPTS = 3;

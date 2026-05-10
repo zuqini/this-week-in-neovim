@@ -4,9 +4,11 @@ import { fetchArticle, type FetchArticleOpts } from "./html.js";
 
 export type EnrichedLink =
   | { kind: "github-readme"; url: string; content: string }
+  | { kind: "github-release"; url: string; note: string }
   | { kind: "html-article"; url: string; content: string }
   | { kind: "video"; url: string; note: string }
   | { kind: "reddit-self"; url: string; note: string }
+  | { kind: "reddit-media"; url: string; note: string }
   | { kind: "fetch-failed"; url: string; error: string };
 
 export interface EnrichItem {
@@ -53,6 +55,12 @@ export async function enrichByKind(
         content: result.content,
       };
     }
+    case "github-release":
+      return {
+        kind: "github-release",
+        url: kind.url,
+        note: "github release; release notes are in item.body",
+      };
     case "html-article": {
       const result = await fetchArticle(kind.url, fetcherOpts);
       return {
@@ -72,6 +80,12 @@ export async function enrichByKind(
         kind: "reddit-self",
         url: kind.url,
         note: "reddit self-post; selftext is the content",
+      };
+    case "reddit-media":
+      return {
+        kind: "reddit-media",
+        url: kind.url,
+        note: "reddit-hosted image; content unavailable for citation",
       };
     case "unknown":
       return null;

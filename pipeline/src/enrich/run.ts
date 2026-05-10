@@ -1,8 +1,10 @@
 import { enrich, type EnrichItem, type EnrichedLink, type EnrichOpts } from "./index.js";
+import { extractEnrichableExtraUrls } from "./selftext.js";
 
 export interface EnrichedItem {
   url: string;
   linkedContent: EnrichedLink | null;
+  linkedContentExtras?: EnrichedLink[];
   [key: string]: unknown;
 }
 
@@ -32,9 +34,9 @@ export async function enrichBatch(
       const idx = cursor++;
       if (idx >= items.length) return;
       const item = items[idx];
+      let linkedContent: EnrichedLink | null;
       try {
-        const linked = await enrich(item, enrichOpts);
-        results[idx] = { ...item, linkedContent: linked };
+        linkedContent = await enrich(item, enrichOpts);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         opts.onError?.({ url: item.url, error: message });
@@ -42,8 +44,38 @@ export async function enrichBatch(
           ...item,
           linkedContent: { kind: "fetch-failed", url: item.url, error: message },
         };
+        continue;
+      }
+
+      const extras = await enrichExtras(item, enrichOpts, opts.onError);
+      results[idx] =
+        extras.length > 0
+          ? { ...item, linkedContent, linkedContentExtras: extras }
+          : { ...item, linkedContent };
+    }
+  }
+
+  async function enrichExtras(
+    item: EnrichItem,
+    enrichOpts: EnrichOpts,
+    onError: EnrichBatchOpts["onError"],
+  ): Promise<EnrichedLink[]> {
+    const isSelf = (item as { is_self?: unknown }).is_self === true;
+    const selftext = (item as { selftext?: unknown }).selftext;
+    if (!isSelf || typeof selftext !== "string" || selftext === "") return [];
+    const extraUrls = extractEnrichableExtraUrls(selftext, item.url);
+    const extras: EnrichedLink[] = [];
+    for (const url of extraUrls) {
+      try {
+        const linked = await enrich({ url }, enrichOpts);
+        if (linked) extras.push(linked);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        onError?.({ url, error: message });
+        extras.push({ kind: "fetch-failed", url, error: message });
       }
     }
+    return extras;
   }
 
   const workerCount = Math.min(concurrency, items.length);

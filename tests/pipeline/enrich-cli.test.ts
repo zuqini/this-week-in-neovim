@@ -52,6 +52,9 @@ describe("enrich-links CLI", () => {
       await writeFile(
         path.join(rawDir, "reddit.json"),
         JSON.stringify({
+          source: "test",
+          fetchedAt: "2026-05-04T00:00:00.000Z",
+          params: {},
           items: [
             { id: "1", url: "https://github.com/folke/lazy.nvim" },
             { id: "2", url: "https://github.com/broken/x" },
@@ -93,6 +96,9 @@ describe("enrich-links CLI", () => {
     await writeFile(
       path.join(rawDir, "reddit.json"),
       JSON.stringify({
+        source: "test",
+        fetchedAt: "2026-05-04T00:00:00.000Z",
+        params: {},
         items: [
           { id: "1", url: "https://github.com/folke/lazy.nvim" },
           { id: "2", url: "https://github.com/owner/repo" },
@@ -102,6 +108,9 @@ describe("enrich-links CLI", () => {
     await writeFile(
       path.join(outDir, "reddit.json"),
       JSON.stringify({
+        source: "test",
+        fetchedAt: "2026-05-04T00:00:00.000Z",
+        params: {},
         items: [
           {
             id: "1",
@@ -137,6 +146,24 @@ describe("enrich-links CLI", () => {
     } finally {
       (globalThis as { fetch: typeof fetch }).fetch = oldFetch;
     }
+  });
+
+  it("exits 1 with a clear error when the raw file is missing items[]", async () => {
+    const date = "2026-05-04";
+    const rawDir = path.join(workdir, "raw", date);
+    await mkdir(rawDir, { recursive: true });
+    await writeFile(
+      path.join(rawDir, "reddit.json"),
+      JSON.stringify({ source: "test", fetchedAt: "2026-05-04T00:00:00.000Z", params: {}, posts: [] }),
+    );
+
+    const code = await runCli([
+      "--raw-dir", rawDir,
+      "--out-dir", path.join(workdir, "out"),
+    ]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("invalid scrape envelope");
+    expect(stderr).toContain("items");
   });
 
   it("exits 1 when raw dir is missing", async () => {

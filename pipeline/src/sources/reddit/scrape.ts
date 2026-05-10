@@ -1,3 +1,4 @@
+import type { RawScrapePayload } from "../../types.js";
 import { defaultClient, type RedditClient, type Timeframe } from "./client.js";
 
 const POST_FIELDS = [
@@ -52,12 +53,9 @@ export interface ProjectedPost {
   top_comments?: ProjectedComment[];
 }
 
-export interface RedditScrape {
+export interface RedditScrape extends RawScrapePayload<ProjectedPost, ScrapeOptions> {
   source: "reddit";
   subreddit: string;
-  fetchedAt: string;
-  params: ScrapeOptions;
-  posts: ProjectedPost[];
 }
 
 export function projectPost(d: any): ProjectedPost {
@@ -98,10 +96,10 @@ export async function scrapeReddit(
     data?: { children?: { data: any }[] };
   };
   const children = listing?.data?.children ?? [];
-  const posts: ProjectedPost[] = children.map((c) => projectPost(c.data));
+  const items: ProjectedPost[] = children.map((c) => projectPost(c.data));
 
   if (withComments) {
-    for (const post of posts) {
+    for (const post of items) {
       const path = post.permalink.replace(/^https:\/\/www\.reddit\.com/, "");
       const raw = await client.fetchComments(path, {
         limit: COMMENTS_FETCH_LIMIT,
@@ -116,6 +114,6 @@ export async function scrapeReddit(
     subreddit,
     fetchedAt: new Date().toISOString(),
     params: options,
-    posts,
+    items,
   };
 }

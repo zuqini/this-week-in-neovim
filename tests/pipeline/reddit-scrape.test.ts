@@ -87,7 +87,7 @@ describe("projectComment", () => {
 });
 
 describe("scrapeReddit", () => {
-  it("returns provenance envelope with source/subreddit/fetchedAt/params/posts", async () => {
+  it("returns provenance envelope with source/subreddit/fetchedAt/params/items", async () => {
     const listing = await loadJson("listing-top-week.json");
     const client: RedditClient = {
       fetchListing: vi.fn().mockResolvedValue(listing),
@@ -109,7 +109,7 @@ describe("scrapeReddit", () => {
       limit: 50,
       withComments: false,
     });
-    expect(result.posts).toHaveLength(50);
+    expect(result.items).toHaveLength(50);
     const ts = Date.parse(result.fetchedAt);
     expect(ts).toBeGreaterThanOrEqual(before);
     expect(ts).toBeLessThanOrEqual(after);
@@ -150,7 +150,7 @@ describe("scrapeReddit", () => {
     );
 
     expect(fetchComments).not.toHaveBeenCalled();
-    for (const p of result.posts) {
+    for (const p of result.items) {
       expect(p.top_comments).toBeUndefined();
     }
   });
@@ -236,19 +236,19 @@ describe("scrapeReddit", () => {
       { limit: 20, depth: 1 },
     );
 
-    expect(result.posts[0].top_comments).toHaveLength(5);
-    expect(result.posts[0].top_comments!.map((c) => c.id)).toEqual([
+    expect(result.items[0].top_comments).toHaveLength(5);
+    expect(result.items[0].top_comments!.map((c) => c.id)).toEqual([
       "c4",
       "c2",
       "c5",
       "c6",
       "c1",
     ]);
-    for (const c of result.posts[0].top_comments!) {
+    for (const c of result.items[0].top_comments!) {
       expect(Object.keys(c).sort()).toEqual([...COMMENT_FIELDS].sort());
     }
 
-    expect(result.posts[1].top_comments).toHaveLength(1);
-    expect(result.posts[1].top_comments![0].id).toBe("x1");
+    expect(result.items[1].top_comments).toHaveLength(1);
+    expect(result.items[1].top_comments![0].id).toBe("x1");
   });
 });

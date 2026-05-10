@@ -1,7 +1,7 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import TurndownService from "turndown";
-import { DEFAULT_USER_AGENT } from "../sources/reddit/client.js";
+import { DEFAULT_USER_AGENT } from "../http.js";
 
 export interface ArticleResult {
   content: string;

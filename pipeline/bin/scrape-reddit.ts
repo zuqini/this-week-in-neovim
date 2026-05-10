@@ -93,7 +93,7 @@ export async function runCli(argv: string[]): Promise<number> {
     return 1;
   }
 
-  process.stdout.write(`wrote ${result.posts.length} posts → ${outPath}\n`);
+  process.stdout.write(`wrote ${result.items.length} posts → ${outPath}\n`);
   return 0;
 }
 
