@@ -101,8 +101,11 @@ Rules:
   `id` is any string matching `[A-Za-z0-9._-]+`; `s1`, `s2`, … is the
   established convention — keep it.
 - `id`s in `sources[]` must be unique.
-- Source `url` must return 200 (the eval will check). Use the URL exactly as
-  it appears in the input — do not strip query strings or add tracking.
+- Source `url` must be `item.url` byte-for-byte from the enriched input — do
+  not strip query strings, normalize a trailing slash, or simplify a
+  `github.com/<owner>/<repo>/tree/<ref>` URL to the bare repo. The judge
+  matches sources by exact string equality; any normalization silently fails
+  every claim cited to that source.
 
 ### Body contract (validated by `lib/citations.ts` + `pipeline/src/eval/`)
 

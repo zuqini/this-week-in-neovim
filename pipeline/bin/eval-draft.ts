@@ -141,6 +141,16 @@ export async function runCli(argv: string[]): Promise<number> {
   return ok ? 0 : 1;
 }
 
+/**
+ * Maps each `sources[i].id` to source text for the faithfulness judge.
+ *
+ * Contract (mirrored by `pipeline/prompts/draft.md`): key is `item.url` on
+ * top-level items only, and only when `linkedContent.content` is a non-empty
+ * string. `selftext`, release `body`, `top_comments`, and
+ * `linkedContentExtras` are not indexed. Lookup is exact string equality.
+ *
+ * Changing the keying makes the drafter prompt silently wrong — update both.
+ */
 async function loadSourceContent(
   enrichedDir: string,
   meta: IssueMeta,

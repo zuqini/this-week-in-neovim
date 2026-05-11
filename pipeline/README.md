@@ -172,3 +172,19 @@ Reads `pipeline/data/raw/<date>/*.json`, writes `pipeline/data/enriched/<date>/<
 - Headless browser fallback (Playwright) for JS-heavy pages — fetch + Readability handles ~80% of links today.
 - Cross-run caching — weekly cadence makes a cache pointless.
 - GitHub API auth — `raw.githubusercontent.com` is public and our volume is well under the unauth rate limit.
+
+## Drafter (`pipeline/prompts/draft.md`)
+
+No code lives in this repo for the draft stage — it is executed by an external LLM harness that substitutes `{{ISSUE_NUMBER}}`, `{{DATE}}`, and `{{ENRICHED_JSON}}` (the parsed contents of `pipeline/data/enriched/<DATE>/`) into the prompt and emits an MDX file. The prompt is the contract. It encodes the frontmatter/citation schema, the faithfulness rules the next stage will enforce, and the editorial voice.
+
+The faithfulness rule is load-bearing: a source is citable iff its `sources[].url` equals a top-level `item.url` whose `linkedContent.content` is a non-empty string. `loadSourceContent` in `pipeline/bin/eval-draft.ts` is the code-side mirror — keep both in sync.
+
+## Eval (`pipeline/bin/eval-draft.ts` + `pipeline/src/eval/`)
+
+```bash
+pnpm pipeline:eval:draft <path-to-mdx> \
+  [--min-words N] [--max-words N] [--skip-links] [--concurrency N] \
+  [--faithfulness --enriched-dir pipeline/data/enriched/<DATE> [--faithfulness-model <id>]]
+```
+
+Parses frontmatter against `lib/issues/schema.ts`, runs `validateCitations` (`lib/citations.ts`), HEADs every `sources[].url` (with `Retry-After` honoring), and counts words within `[100, 10000]`. With `--faithfulness`, each `(claim, citation)` pair is judged by an LLM against the enriched source text (default model `claude-sonnet-4-6`); usage is printed on stderr. Exits non-zero on any failure.

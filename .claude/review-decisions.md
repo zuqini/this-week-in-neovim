@@ -158,6 +158,22 @@ Seeded from the 2026-05-03 multi-agent review (`/arch-review` + `/review`).
 - Anchor: pipeline/bin/scrape-reddit.ts, pipeline/bin/scrape-github-releases.ts, pipeline/bin/scrape-awesome-neovim.ts
 - Revisit when: `q94`, `jzg`, or `ei7` lands — bundle the extraction with the first one
 
+### Drafter prompt does not enumerate `linkedContent: null`
+- Flagged: bug-finder noted the prompt's `linkedContent` kind union (`pipeline/prompts/draft.md:34-59`) omits the `null` case the classifier's `"unknown"` branch produces.
+- Decision: the classifier returns `"unknown"` only for unparseable URLs or non-http(s) schemes (`pipeline/src/enrich/classifier.ts:59-65`); scrapers only emit URLs they already successfully fetched, so `linkedContent: null` does not appear in real input. The self-check at `pipeline/prompts/draft.md:147-150` ("non-empty `linkedContent.content`") filters any pathological case anyway. Enumerating it would clutter the kind list with a case the LLM will never see.
+- Anchor: pipeline/prompts/draft.md:34-59, pipeline/src/enrich/classifier.ts:59-65
+
+### Snapshot test pinning `loadSourceContent` URL→text contract
+- Flagged: design-reviewer suggested a snapshot test asserting `loadSourceContent` keys only by top-level `item.url` with non-empty `linkedContent.content`, to detect drift against `pipeline/prompts/draft.md`.
+- Decision: the docstring on `loadSourceContent` (added in commit after `16fa1d0`) is the contract anchor at the enforcement point. A snapshot test pins implementation details with one prompt consumer; the eval is itself the integration check — drift surfaces as a failed faithfulness run, with a specific debuggable error. Test would add maintenance cost without an active drift signal.
+- Anchor: pipeline/bin/eval-draft.ts (above `loadSourceContent`)
+- Revisit when: a second prompt consumer (e.g. summary prompt, classifier prompt) needs the same URL→text contract — then pin it once for both.
+
+### Drop the `pnpm pipeline:eval:draft` invocation block at the end of `draft.md`
+- Flagged: design-reviewer noted that `pipeline/prompts/draft.md:286-294` repeats the script invocation that appears in `package.json` and `next_steps.md`; the LLM never runs it, so it looks like redundant prose.
+- Decision: the block grounds the LLM's understanding of what the eval will mechanically check, which directly informs the self-check step (`pipeline/prompts/draft.md:273-281`). Removing it would shorten the prompt at the cost of the LLM losing context for the "self-check before emitting" instructions. Acceptable duplication for prompt-engineering reasons.
+- Anchor: pipeline/prompts/draft.md:286-307
+
 ### Reddit-shape field access in `enrichExtras`
 - Flagged: `pipeline/src/enrich/run.ts:63-65` does `(item as { is_self?: unknown }).is_self === true` + `selftext` — a reddit-specific field cast inside a source-agnostic enricher.
 - Decision: deferred. Today reddit is the only source with a body-with-embedded-URLs shape; github-release notes live in `item.body` and are consumed directly by the drafter, not as enricher "extras". Generalizing prematurely (e.g., an `extraSourceText?: string` field on `EnrichItem` set by each projector) would design the abstraction with one example. The cast is ugly but localized — the leak is two lines that disappear when a second source needs the same treatment.
