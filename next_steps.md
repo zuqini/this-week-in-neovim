@@ -25,10 +25,16 @@ The four sources (Reddit selfposts + selftext extras, GitHub releases, awesome-n
 
 ## Source breadth (parallel, lower-coupling)
 
-- **`this-week-in-neovim-8gz`** [P2] — neovim/neovim Discussions (RFC category) via GraphQL. Follow-up to `izm`.
-- **`this-week-in-neovim-q94`** [P2] — plugin author release feeds (the `## Updated plugins` beat).
-- **`this-week-in-neovim-jzg`** [P2] — GitHub Search `topic:neovim-plugin pushed:>last-week`. Cross-validates `j22`.
-- **`this-week-in-neovim-ei7`** [P3] — HN Algolia + Lobsters longform article catcher.
+The launch issue has six section headers; current coverage is plugin-heavy. Filed sources by section:
+
+| Section | Shipped | P2 follow-ups | P3 follow-ups |
+|---|---|---|---|
+| `## Neovim core` | `izm` (releases) | `8gz` Discussions/RFC (GraphQL) | — |
+| `## New plugins` | `j22` (awesome-neovim) | `jzg` GitHub Search cross-validator | — |
+| `## Updated plugins` | — | `q94` plugin-author release feeds | — |
+| `## Notable posts & videos` | — | `hmn` YouTube channel RSS | `ei7` HN/Lobsters, `40l` dev-blog RSS |
+| `## Community` | — | — | `4kv` Mastodon #neovim |
+| cross-cutting | `reddit r/neovim` (selfposts + extras) | — | — |
 
 ## Conventions for the next agent
 
@@ -44,7 +50,7 @@ The four sources (Reddit selfposts + selftext extras, GitHub releases, awesome-n
 ## Good first commands
 
 ```bash
-bd ready                                         # 12 ready issues today
+bd ready                                         # 15 ready issues today
 pnpm pipeline:scrape:reddit --subreddit=neovim --timeframe=week --limit=50
 pnpm pipeline:scrape:github-releases --owner=neovim --repo=neovim --since=7d
 pnpm pipeline:scrape:awesome-neovim --since=7d
