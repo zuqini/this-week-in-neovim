@@ -21,8 +21,7 @@ The drafter prompt works around this by telling the LLM to avoid those as citati
 
 ## Immediate priority — first real drafter run
 
-1. **`this-week-in-neovim-der`** [P2] — Zod-validate the Reddit listing payload (the per-source equivalent of what `4oj` did at the envelope level).
-2. **`this-week-in-neovim-1f7`** [P3 bug] — `--date` defaults to today UTC; surprises around the scrape→enrich midnight boundary.
+`der` (Reddit-listing Zod schemas, projection now takes typed inputs, no `any`) and `1f7` (enrich-links `--date` defaults to most recent dated subdir under `pipeline/data/raw/`) shipped 2026-05-10. 50/50 items in the existing `2026-05-04` projection validate against the new schema; lenient comment fallback preserved.
 
 The harness-equivalent integration test (`w5b`) shipped at `tests/integration/harness.test.tsx` — it exercises the scrape→enrich→draft-projection→frontmatter→citations→render seam against the checked-in Reddit fixtures with no network and no LLM (~500ms).
 
