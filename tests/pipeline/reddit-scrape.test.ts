@@ -6,6 +6,10 @@ import {
   projectPost,
   scrapeReddit,
 } from "@/pipeline/src/sources/reddit/scrape";
+import {
+  redditCommentDataSchema,
+  redditPostDataSchema,
+} from "@/pipeline/src/sources/reddit/schema";
 import type { RedditClient } from "@/pipeline/src/sources/reddit/client";
 
 const FIXTURE_DIR = path.resolve(import.meta.dirname, "../fixtures/reddit");
@@ -43,15 +47,13 @@ function commentsListing(
 describe("projectPost", () => {
   it("picks only the 12 documented fields and absolutizes permalink", async () => {
     const fixture = (await loadJson("listing-top-week.json")) as {
-      data: { children: { data: Record<string, unknown> }[] };
+      data: { children: { data: unknown }[] };
     };
-    const raw = fixture.data.children[0].data;
+    const raw = redditPostDataSchema.parse(fixture.data.children[0].data);
     const projected = projectPost(raw);
 
     expect(Object.keys(projected).sort()).toEqual([...POST_FIELDS].sort());
-    expect(projected.permalink).toBe(
-      `https://www.reddit.com${raw.permalink as string}`,
-    );
+    expect(projected.permalink).toBe(`https://www.reddit.com${raw.permalink}`);
     expect(projected.permalink.startsWith("https://www.reddit.com/r/")).toBe(true);
     expect(projected.title).toBe(raw.title);
     expect(projected.id).toBe(raw.id);
@@ -64,7 +66,7 @@ describe("projectPost", () => {
 
 describe("projectComment", () => {
   it("picks only the 5 documented fields", () => {
-    const raw = {
+    const raw = redditCommentDataSchema.parse({
       id: "c1",
       author: "alice",
       score: 42,
@@ -73,7 +75,7 @@ describe("projectComment", () => {
       replies: "",
       author_fullname: "t2_xxx",
       ups: 42,
-    };
+    });
     const projected = projectComment(raw);
     expect(Object.keys(projected).sort()).toEqual([...COMMENT_FIELDS].sort());
     expect(projected).toEqual({
@@ -157,9 +159,11 @@ describe("scrapeReddit", () => {
 
   it("fetches comments per post and projects top 5 by score, filtering 'more' stubs", async () => {
     const listing = {
+      kind: "Listing",
       data: {
         children: [
           {
+            kind: "t3",
             data: {
               title: "t",
               author: "a",
@@ -176,6 +180,7 @@ describe("scrapeReddit", () => {
             },
           },
           {
+            kind: "t3",
             data: {
               title: "t2",
               author: "a2",
@@ -250,5 +255,39 @@ describe("scrapeReddit", () => {
 
     expect(result.items[1].top_comments).toHaveLength(1);
     expect(result.items[1].top_comments![0].id).toBe("x1");
+  });
+
+  it("throws with a path-prefixed schema error when a post is missing required fields", async () => {
+    const fixture = (await loadJson("listing-top-week.json")) as {
+      data: { children: { data: Record<string, unknown> }[] };
+    };
+    delete fixture.data.children[0].data.title;
+    const client: RedditClient = {
+      fetchListing: vi.fn().mockResolvedValue(fixture),
+      fetchComments: vi.fn().mockResolvedValue(commentsListing([])),
+    };
+
+    await expect(
+      scrapeReddit(
+        { subreddit: "neovim", timeframe: "week", limit: 50, withComments: false },
+        client,
+      ),
+    ).rejects.toThrow(/reddit listing schema mismatch at data\.children\.0\.data\.title/);
+  });
+
+  it("returns no top_comments when the comments response has the wrong outer shape", async () => {
+    const listing = await loadJson("listing-top-week.json");
+    const client: RedditClient = {
+      fetchListing: vi.fn().mockResolvedValue(listing),
+      fetchComments: vi.fn().mockResolvedValue({ not: "an array" }),
+    };
+
+    const result = await scrapeReddit(
+      { subreddit: "neovim", timeframe: "week", limit: 5 },
+      client,
+    );
+    for (const p of result.items) {
+      expect(p.top_comments).toEqual([]);
+    }
   });
 });

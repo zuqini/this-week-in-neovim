@@ -185,4 +185,39 @@ describe("enrich-links CLI", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("no .json files");
   });
+
+  it("infers --date from the most recent dated subdir under <root>/raw when --date is omitted", async () => {
+    const rawRoot = path.join(workdir, "raw");
+    await mkdir(path.join(rawRoot, "2026-05-04"), { recursive: true });
+    await mkdir(path.join(rawRoot, "2026-05-10"), { recursive: true });
+    await mkdir(path.join(rawRoot, "not-a-date"), { recursive: true });
+
+    await writeFile(
+      path.join(rawRoot, "2026-05-10", "reddit.json"),
+      JSON.stringify({
+        source: "test",
+        fetchedAt: "2026-05-10T00:00:00.000Z",
+        params: {},
+        items: [{ id: "1", url: "https://github.com/folke/lazy.nvim" }],
+      }),
+    );
+    // Older subdir contains a payload that would fail enrichment if picked —
+    // proves we chose the newer one.
+    await writeFile(
+      path.join(rawRoot, "2026-05-04", "reddit.json"),
+      JSON.stringify({ source: "test", fetchedAt: "old", params: {} }),
+    );
+
+    const oldFetch = globalThis.fetch;
+    (globalThis as { fetch: typeof fetch }).fetch = vi
+      .fn()
+      .mockResolvedValue(ok("# Hello")) as unknown as typeof fetch;
+    try {
+      const code = await runCli(["--root", workdir]);
+      expect(code).toBe(0);
+      expect(stdout.trim()).toBe("enriched 1 items, skipped 0, failed 0");
+    } finally {
+      (globalThis as { fetch: typeof fetch }).fetch = oldFetch;
+    }
+  });
 });

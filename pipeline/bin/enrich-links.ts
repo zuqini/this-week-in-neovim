@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { enrichBatch, type EnrichedItem } from "../src/enrich/run.js";
@@ -12,6 +13,8 @@ interface CliArgs {
   outDir: string;
   concurrency: number;
 }
+
+const DATE_DIR_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function parseArgs(argv: string[]): CliArgs {
   const args = new Map<string, string>();
@@ -29,13 +32,25 @@ function parseArgs(argv: string[]): CliArgs {
     }
   }
 
-  const date = args.get("date") ?? defaultUtcDate();
   const root = args.get("root") ?? path.resolve(process.cwd(), "pipeline/data");
+  const date =
+    args.get("date") ?? mostRecentRawDate(path.join(root, "raw")) ?? defaultUtcDate();
   const rawDir = args.get("raw-dir") ?? path.join(root, "raw", date);
   const outDir = args.get("out-dir") ?? path.join(root, "enriched", date);
   const concurrency = Number(args.get("concurrency") ?? "4");
 
   return { date, rawDir, outDir, concurrency };
+}
+
+function mostRecentRawDate(rawRoot: string): string | null {
+  let entries: string[];
+  try {
+    entries = readdirSync(rawRoot);
+  } catch {
+    return null;
+  }
+  const dated = entries.filter((e) => DATE_DIR_RE.test(e)).sort();
+  return dated.length === 0 ? null : dated[dated.length - 1];
 }
 
 function defaultUtcDate(): string {
