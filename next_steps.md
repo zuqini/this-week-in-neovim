@@ -2,26 +2,30 @@
 
 Compass for the next agent picking up this project. **bd is the source of truth** — this file points; the issues describe.
 
-## Where things stand (2026-05-10)
+## Where things stand (2026-05-11)
 
 - **Phase 1 (citation-first static site)**: shipped. Cloudflare Pages deploys via the Pages Git integration.
 - **Phase 2 P1 eval chain**: shipped (`6tn`, `f3l`, `y97`, `193`).
-- **Phase 2 P1 source-gap chain**: shipped today.
-  - `owb` — classifier routes `i.redd.it` / `preview.redd.it` to a `reddit-media` stub instead of fetching CAPTCHA HTML.
-  - `2pr` — `enrichBatch` now extracts URLs from `selftext` for reddit selfposts and attaches `linkedContentExtras: EnrichedLink[]`. Verified on 3 selfposts in the live `2026-05-04` fixture.
-  - `izm` — `pnpm pipeline:scrape:github-releases` ships; `--since` accepts ISO or `Nd` shorthand; `GITHUB_TOKEN` raises rate limits. Discussions split off as **`8gz`** (needs GraphQL).
-  - `j22` — `pnpm pipeline:scrape:awesome-neovim` blobless-clones (`--filter=blob:none`) `rockerBOO/awesome-neovim` to `pipeline/.cache/awesome-neovim` and parses additions out of `git log -p -- README.md`. Not a shallow clone — `git log --since` needs full history. Smoke-tested live: 35 additions over the last 30 days.
-- **Pipeline-robustness landed**: `1ra` (UA constant lives in `pipeline/src/http.ts`), `4oj` (Zod-validated `RawScrapePayload<T,P>` envelope; `enrich-links` rejects a malformed scrape file with a clear error). Reddit scraper now writes `items` (not `posts`); the live `2026-05-{04,10}` raw fixtures were one-shot migrated.
-- **New classifier kind**: `github-release` for `github.com/.../releases[/tag/...]` URLs, so the enricher does not fetch the wrong README. Release notes live in `item.body`.
+- **Phase 2 P1 source-gap chain**: shipped (`owb`, `2pr`, `izm`, `j22`, `1ra`, `4oj`).
+- **Drafter prompt** (`qez`): shipped at `pipeline/prompts/draft.md`. Self-contained; the external LLM harness substitutes `{{ISSUE_NUMBER}}`, `{{DATE}}`, `{{ENRICHED_JSON}}` and emits MDX. The prompt is opinionated about the faithfulness-judge constraint — only top-level items with `linkedContent.content` (kinds `github-readme` / `html-article`) are safe to cite, because `loadSourceContent` in `pipeline/bin/eval-draft.ts` only reads top-level `item.linkedContent.content` (not `selftext`, not `body`, not `linkedContentExtras`).
 
-## Immediate priority — drafter prompt
+## Known faithfulness-eval gap (worth filing if it bites)
 
-The four sources (Reddit selfposts + selftext extras, GitHub releases, awesome-neovim) now cover every section header in the launch issue's structure. The drafter prompt — executed by a separate LLM harness project, not code in this repo — is the next gate.
+The faithfulness judge can't verify claims cited to:
 
-1. **`this-week-in-neovim-qez`** [P1] — write `pipeline/prompts/draft.md`: the prompt the external harness invokes against enriched JSON to produce MDX. Eval still gates output (citations + faithfulness); only the prompt lives here. No new pipeline code.
-2. **`this-week-in-neovim-w5b`** [P2] — end-to-end integration test. Now unblocked: it can exercise the real scrape→enrich→eval seam (no LLM call; uses a hand-crafted draft-projection helper).
-3. **`this-week-in-neovim-der`** [P2] — Zod-validate the Reddit listing payload (the per-source equivalent of what `4oj` did at the envelope level).
-4. **`this-week-in-neovim-1f7`** [P3 bug] — `--date` defaults to today UTC; surprises around the scrape→enrich midnight boundary.
+- `github-release` items (release notes are in `item.body`, judge reads `linkedContent.content`),
+- `reddit-self` items (selftext is in `item.selftext`, same reason),
+- `linkedContentExtras[i].url` (judge only matches top-level `item.url`).
+
+The drafter prompt works around this by telling the LLM to avoid those as citations. Closing the gap means teaching `loadSourceContent` to read `item.body`, `item.selftext`, and walk extras — and re-keying the URL→text map by every URL the source actually exposes (e.g. permalink AND any extras' URLs). Not filed yet — wait for the first real harness run to confirm the workaround is acceptable before adding code.
+
+## Immediate priority — first real drafter run
+
+1. **`this-week-in-neovim-w5b`** [P2] — end-to-end integration test. Now unblocked: it can exercise the real scrape→enrich→eval seam (no LLM call; uses a hand-crafted draft-projection helper).
+2. **`this-week-in-neovim-der`** [P2] — Zod-validate the Reddit listing payload (the per-source equivalent of what `4oj` did at the envelope level).
+3. **`this-week-in-neovim-1f7`** [P3 bug] — `--date` defaults to today UTC; surprises around the scrape→enrich midnight boundary.
+
+The unmeasured-but-load-bearing next step is **actually running the prompt against the 2026-05-04 fixture in the external harness** and watching what eval says. The prompt's claims about which sources are citable are derived by reading the eval code — they're correct in theory; one real run will confirm in practice.
 
 ## Source breadth (parallel, lower-coupling)
 
