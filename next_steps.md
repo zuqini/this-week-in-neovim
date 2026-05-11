@@ -10,7 +10,7 @@ Compass for the next agent picking up this project. **bd is the source of truth*
   - `owb` — classifier routes `i.redd.it` / `preview.redd.it` to a `reddit-media` stub instead of fetching CAPTCHA HTML.
   - `2pr` — `enrichBatch` now extracts URLs from `selftext` for reddit selfposts and attaches `linkedContentExtras: EnrichedLink[]`. Verified on 3 selfposts in the live `2026-05-04` fixture.
   - `izm` — `pnpm pipeline:scrape:github-releases` ships; `--since` accepts ISO or `Nd` shorthand; `GITHUB_TOKEN` raises rate limits. Discussions split off as **`8gz`** (needs GraphQL).
-  - `j22` — `pnpm pipeline:scrape:awesome-neovim` shallow-clones `rockerBOO/awesome-neovim` to `pipeline/.cache/awesome-neovim` and parses additions out of `git log -p -- README.md`. Smoke-tested live: 35 additions over the last 30 days.
+  - `j22` — `pnpm pipeline:scrape:awesome-neovim` blobless-clones (`--filter=blob:none`) `rockerBOO/awesome-neovim` to `pipeline/.cache/awesome-neovim` and parses additions out of `git log -p -- README.md`. Not a shallow clone — `git log --since` needs full history. Smoke-tested live: 35 additions over the last 30 days.
 - **Pipeline-robustness landed**: `1ra` (UA constant lives in `pipeline/src/http.ts`), `4oj` (Zod-validated `RawScrapePayload<T,P>` envelope; `enrich-links` rejects a malformed scrape file with a clear error). Reddit scraper now writes `items` (not `posts`); the live `2026-05-{04,10}` raw fixtures were one-shot migrated.
 - **New classifier kind**: `github-release` for `github.com/.../releases[/tag/...]` URLs, so the enricher does not fetch the wrong README. Release notes live in `item.body`.
 

@@ -33,33 +33,48 @@ const FILE_MARKER_RE = /^(\+\+\+|---) /;
 const ENTRY_RE = /^-\s+\[([^\]]+)\]\(([^)\s]+)\)\s*[-—–:]\s*(.+?)\s*$/;
 
 export function parseAdditions(diff: string): AwesomeNeovimAddition[] {
-  const seen = new Set<string>();
-  const out: AwesomeNeovimAddition[] = [];
+  const out = new Map<string, AwesomeNeovimAddition>();
   let currentCommit = "";
+  let commitAdds: Array<{ name: string; url: string; description: string }> = [];
+  let commitRems = new Set<string>();
+
+  function flushCommit(): void {
+    for (const add of commitAdds) {
+      if (commitRems.has(add.url)) continue;
+      if (out.has(add.url)) continue;
+      out.set(add.url, {
+        id: add.url,
+        url: add.url,
+        title: add.name,
+        description: add.description,
+        addedInCommit: currentCommit,
+      });
+    }
+    commitAdds = [];
+    commitRems = new Set();
+  }
 
   for (const line of diff.split("\n")) {
     const c = line.match(COMMIT_RE);
     if (c) {
+      flushCommit();
       currentCommit = c[1];
       continue;
     }
-    if (!line.startsWith("+")) continue;
     if (FILE_MARKER_RE.test(line)) continue;
-    const content = line.slice(1);
-    const m = content.match(ENTRY_RE);
-    if (!m) continue;
-    const [, name, url, description] = m;
-    if (seen.has(url)) continue;
-    seen.add(url);
-    out.push({
-      id: url,
-      url,
-      title: name,
-      description,
-      addedInCommit: currentCommit,
-    });
+    if (line.startsWith("+")) {
+      const m = line.slice(1).match(ENTRY_RE);
+      if (!m) continue;
+      const [, name, url, description] = m;
+      commitAdds.push({ name, url, description });
+    } else if (line.startsWith("-")) {
+      const m = line.slice(1).match(ENTRY_RE);
+      if (m) commitRems.add(m[2]);
+    }
   }
-  return out;
+  flushCommit();
+
+  return Array.from(out.values());
 }
 
 export async function scrapeRepo(

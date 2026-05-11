@@ -16,7 +16,7 @@ pipeline/data/
 
 ### Reddit (`pipeline/src/sources/reddit/`)
 
-Scrapes top posts (and top comments) from a subreddit via Reddit's public JSON endpoint. Output is an envelope `{ source, subreddit, fetchedAt, params, posts }` where each post is projected to 12 fields (snake_case preserved to match Reddit's API) plus `top_comments[]`.
+Scrapes top posts (and top comments) from a subreddit via Reddit's public JSON endpoint. Output is the shared `RawScrapePayload` envelope `{ source, fetchedAt, params, items }` (see `pipeline/src/types.ts`) where each item is a post projected to 12 fields (snake_case preserved to match Reddit's API) plus `top_comments[]`.
 
 #### Run
 
@@ -34,7 +34,7 @@ Flags (all `--key=value`):
 | `--out-dir` | `pipeline/data/raw` | date-stamped subdir is created beneath this |
 | `--no-comments` | off | skip the per-post comment fetch (fast iteration) |
 
-Writes `<out-dir>/<YYYY-MM-DD>/reddit-<subreddit>.json` (UTC date). Idempotent — re-running the same day overwrites the same file. One stdout line: `wrote N posts → <path>`.
+Writes `<out-dir>/<YYYY-MM-DD>/reddit-<subreddit>.json` (UTC date). Idempotent — re-running the same day overwrites the same file. One stdout line: `wrote N posts → <path>` (English copy; the JSON field is `items`).
 
 #### Env vars
 
@@ -45,10 +45,9 @@ None today. When the registered Reddit OAuth app is approved (see "Reddit OAuth 
 ```json
 {
   "source": "reddit",
-  "subreddit": "neovim",
   "fetchedAt": "2026-05-04T12:34:56.789Z",
   "params": { "subreddit": "neovim", "timeframe": "week", "limit": 50, "withComments": true },
-  "posts": [
+  "items": [
     {
       "title": "Dynamic neovim theme generation with matugen",
       "author": "OkAdhesiveness1951",
@@ -96,6 +95,50 @@ Reddit OAuth app registered 2026-05-04, currently pending review. Once approved,
 
 `pipeline/data/` is gitignored (see `.gitignore`). `TASK.md` originally described raw artifacts as "committed for traceability"; that intent is deferred to whenever GH Actions starts running scrapes. During harness-driven development, **whether to commit a given run's raw output is a per-run editorial choice** — manually `git add -f pipeline/data/raw/<date>/reddit-<sub>.json` if you want it in the PR. Don't flip the gitignore default; it would create churn from local scrape runs.
 
+### GitHub releases (`pipeline/src/sources/github/`)
+
+Scrapes the GitHub Releases API for a single repository — the `## Neovim core` beat. Output is a `RawScrapePayload<GithubRelease>` whose items carry the release notes in `body`.
+
+```bash
+pnpm pipeline:scrape:github-releases --owner=neovim --repo=neovim --since=7d
+```
+
+Flags (all `--key=value`):
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--owner` | `neovim` | repo owner |
+| `--repo` | `neovim` | repo name |
+| `--since` | `7d` | ISO date or `Nd` shorthand; releases older than this are filtered out |
+| `--per-page` | `30` | GitHub caps at 100; single-page fetch (no pagination today) |
+| `--out-dir` | `pipeline/data/raw` | date-stamped subdir is created beneath this |
+| `--out-name` | `github-<owner>-<repo>-releases.json` | output filename |
+
+Env: `GITHUB_TOKEN` is optional but recommended — raises the rate limit and is required for private repos. 401/403 responses surface a clear "Set GITHUB_TOKEN" error.
+
+Single-repo, weekly cadence — no retry or pagination today. If the repo posts more than `--per-page` releases in the window, older ones are missed.
+
+### awesome-neovim (`pipeline/src/sources/awesome-neovim/`)
+
+Diffs `rockerBOO/awesome-neovim`'s README.md to extract additions — the `## New plugins` beat. Output is a `RawScrapePayload<AwesomeNeovimAddition>`.
+
+```bash
+pnpm pipeline:scrape:awesome-neovim --since=7d
+```
+
+Flags (all `--key=value`):
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--repo-url` | `https://github.com/rockerBOO/awesome-neovim.git` | upstream |
+| `--repo-dir` | `pipeline/.cache/awesome-neovim` | local clone; gitignored |
+| `--since` | `7d` | ISO date or `Nd` shorthand; passed to `git log --since` |
+| `--readme` | `README.md` | file to diff |
+| `--no-fetch` | off | skip `ensureRepo` (use existing clone as-is) |
+| `--out-dir` / `--out-name` | `pipeline/data/raw` / `awesome-neovim-additions.json` | |
+
+Clones with `--filter=blob:none` (blobless partial clone, **not** shallow — `git log --since` needs full history). On re-run, fetches `origin` and `reset --hard origin/HEAD`. Parses additions out of `git log -p -- README.md`; rename/edit pairs (URL appears on both `-` and `+` lines) are excluded from emissions.
+
 ## Enricher (`pipeline/src/enrich/`)
 
 The enricher walks each scraped item's URL and fetches the linked content so the LLM has substance to cite, not just headlines. Source-agnostic: every scraper produces items with URLs and the enricher classifies + dispatches per kind.
@@ -105,12 +148,16 @@ The enricher walks each scraped item's URL and fetches the linked content so the
 | Kind | Source | What we fetch |
 |---|---|---|
 | `github-readme` | `github.com/{owner}/{repo}` | `raw.githubusercontent.com/.../README.md` (with case-fallback chain), capped at 8 KB |
+| `github-release` | `github.com/.../releases[/tag/...]` | stub — release notes are already in `item.body` from the releases scraper |
 | `html-article` | generic blog URLs | HTML → `@mozilla/readability` main-content extract → markdown via `turndown`, capped at 8 KB |
 | `video` | `v.redd.it`, YouTube, Vimeo | skipped; tagged "video; content unavailable for citation" |
 | `reddit-self` | `reddit.com/r/.../comments/...` | skipped; the selftext from the Reddit scraper is already the content |
+| `reddit-media` | `i.redd.it`, `preview.redd.it`, `external-preview.redd.it` | skipped; image-blob URLs have no citation text |
 | `unknown` | non-http(s), malformed URLs | dropped |
 
 Per-item failures don't fail the batch — failed items round-trip with `linkedContent: { kind: "fetch-failed", url, error }`.
+
+For reddit-self posts, the enricher also extracts URLs from `selftext` and attaches them as `linkedContentExtras: EnrichedLink[]` — see `pipeline/src/enrich/selftext.ts`. Only `github-readme`, `html-article`, and `video` kinds are pursued as extras; everything else (`reddit-self`, `reddit-media`, `github-release`, `unknown`) is filtered.
 
 ### CLI
 

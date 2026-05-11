@@ -127,3 +127,39 @@ Seeded from the 2026-05-03 multi-agent review (`/arch-review` + `/review`).
 - Flagged: arch-reviewer claimed the directive is redundant globally.
 - Decision: partially rejected. Next.js 16 explicitly **requires** `dynamic = "force-static"` on route handlers (`app/feed.xml/route.ts`) and metadata routes (`robots.ts`, `sitemap.ts`, both `opengraph-image.tsx`) under `output: "export"`; dropping it produces a build-time error. The directive was correctly retained on these files. `dynamicParams = false` was removed from page routes where it is genuinely redundant (per A4).
 - Type: enforced
+
+### `pipeline/src/http.ts` is a single-constant file
+- Flagged: 2-line file exporting one `DEFAULT_USER_AGENT` constant; "premature module" smell.
+- Decision: explicitly per `1ra`'s scope — the constant was moved out of `pipeline/src/sources/reddit/client.ts` so the source-agnostic enricher and the new github-releases scraper don't reach into a Reddit-specific module. The file is a named bucket for future shared HTTP helpers (`safeText`, byte-aware truncation in `enrich/{github,html}.ts`). Splitting into per-helper files would re-introduce the dependency cycle 1ra fixed.
+- Anchor: pipeline/src/http.ts
+- Revisit when: the file shrinks back to one symbol after the listed helpers move elsewhere
+
+### Selftext URL extraction is intentionally loose
+- Flagged: regex in `pipeline/src/enrich/selftext.ts` doesn't strip markdown emphasis (`**url**`, `_url_`, `~url~`), doesn't paren-balance Wikipedia-style URLs, doesn't case-normalize the `seen` dedup.
+- Decision: out-of-spec selftext markup is vanishingly rare on r/neovim (plugin authors use `[name](url)` or bare URLs). A malformed bare URL fetch-fails gracefully; the drafter ignores `fetch-failed` items and the eval/citation pipeline can't bind to them anyway. Tightening the regex adds complexity for ~0 expected hits/week on a weekly-cadence newsletter.
+- Anchor: pipeline/src/enrich/selftext.ts:3-5
+- Revisit when: a real fetch-failure caused by URL mis-parse appears in production output
+
+### GitHub releases scraper has no retry / pagination / draft filter
+- Flagged: unlike `pipeline/src/sources/reddit/client.ts` (which has 429/5xx retry + Retry-After), `pipeline/src/sources/github/releases.ts` does one `fetch` and aborts on transient failure. No pagination. No `draft: true` filter.
+- Decision: weekly cadence, single repo (`neovim/neovim`), one HTTP call per run. Adding retry duplicates work for failures that recover by re-running the CLI a minute later. Pagination is irrelevant — Neovim posts ≤ 5 releases per quarter; `--per-page=30` covers a year. Drafts only surface with an authenticated `GITHUB_TOKEN`; the pipeline output is gated by manual review before publishing, so a draft leak is editorial-not-security.
+- Anchor: pipeline/src/sources/github/releases.ts:54-65
+- Revisit when: the scraper is generalized to multiple repos OR a release-heavy repo (plugin author feeds, `q94`) gets onboarded
+
+### `isAlreadyEnriched` treats `fetch-failed` as a permanent cache entry
+- Flagged: `pipeline/bin/enrich-links.ts:70-72` returns true whenever `linkedContent` is present, including `{ kind: "fetch-failed" }`. Transient 429/5xx errors get baked into the cached output and never retried.
+- Decision: at weekly cadence, dead URLs vastly outnumber transient failures. A "retry on fetch-failed" default would waste enrichment time hitting dead links on every run. Operators who see a transient failure can delete the enriched file and re-run; that's once per quarter at most.
+- Anchor: pipeline/bin/enrich-links.ts:70-72
+- Revisit when: the pipeline runs daily or hourly, or operators report repeated dead-URL re-fetches as wasteful
+
+### CLI arg-parse triplication across `pipeline/bin/scrape-*.ts`
+- Flagged: `scrape-reddit.ts`, `scrape-github-releases.ts`, `scrape-awesome-neovim.ts` each repeat `parseArgs`, `parseSince`, `utcDate`, `isMain` detection, and the write-payload tail.
+- Decision: extract on the **next** scraper, not this one. Three call sites is the threshold where extraction starts paying off, but the planned next scrapers (`q94` plugin-author feeds, `jzg` GH Search, `ei7` HN/Lobsters) each have meaningfully different arg shapes, so the helper's interface isn't obvious yet. Premature extraction now would force an early-and-wrong abstraction.
+- Anchor: pipeline/bin/scrape-reddit.ts, pipeline/bin/scrape-github-releases.ts, pipeline/bin/scrape-awesome-neovim.ts
+- Revisit when: `q94`, `jzg`, or `ei7` lands — bundle the extraction with the first one
+
+### Reddit-shape field access in `enrichExtras`
+- Flagged: `pipeline/src/enrich/run.ts:63-65` does `(item as { is_self?: unknown }).is_self === true` + `selftext` — a reddit-specific field cast inside a source-agnostic enricher.
+- Decision: deferred. Today reddit is the only source with a body-with-embedded-URLs shape; github-release notes live in `item.body` and are consumed directly by the drafter, not as enricher "extras". Generalizing prematurely (e.g., an `extraSourceText?: string` field on `EnrichItem` set by each projector) would design the abstraction with one example. The cast is ugly but localized — the leak is two lines that disappear when a second source needs the same treatment.
+- Anchor: pipeline/src/enrich/run.ts:58-79
+- Revisit when: a non-reddit source needs body-URL extraction (e.g., HN/Lobsters comments, Mastodon posts)

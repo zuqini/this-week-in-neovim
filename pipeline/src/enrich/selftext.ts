@@ -17,14 +17,18 @@ export function extractUrls(text: string): string[] {
   return out;
 }
 
-const ENRICHABLE_KINDS = new Set<LinkKind["kind"]>([
-  "github-readme",
-  "html-article",
-  "video",
-]);
-
 export function isEnrichableExtra(kind: LinkKind): boolean {
-  return ENRICHABLE_KINDS.has(kind.kind);
+  switch (kind.kind) {
+    case "github-readme":
+    case "html-article":
+    case "video":
+      return true;
+    case "github-release":
+    case "reddit-self":
+    case "reddit-media":
+    case "unknown":
+      return false;
+  }
 }
 
 export function extractEnrichableExtraUrls(

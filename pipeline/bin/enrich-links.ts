@@ -143,13 +143,11 @@ export async function runCli(argv: string[]): Promise<number> {
       }
     });
 
-    let perFileFailed = 0;
     const enrichedSlice = await enrichBatch(
       toEnrich.map((t) => t.item),
       {
         concurrency: args.concurrency,
         onError: ({ url, error }) => {
-          perFileFailed++;
           process.stderr.write(`enrich-links: ${file}: ${url}: ${error}\n`);
         },
       },
@@ -158,6 +156,9 @@ export async function runCli(argv: string[]): Promise<number> {
       merged[toEnrich[i].idx] = e;
     });
 
+    const perFileFailed = enrichedSlice.filter(
+      (e) => e.linkedContent?.kind === "fetch-failed",
+    ).length;
     const enrichedThisFile = enrichedSlice.length - perFileFailed;
 
     try {

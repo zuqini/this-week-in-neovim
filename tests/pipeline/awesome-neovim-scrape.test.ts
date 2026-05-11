@@ -90,6 +90,19 @@ describe("parseAdditions", () => {
   it("returns empty for an empty diff", () => {
     expect(parseAdditions("")).toEqual([]);
   });
+
+  it("excludes URLs paired - and + within the same commit (description edits / renames)", () => {
+    const diff = `commit aaa1111\n+- [foo](https://github.com/o/foo) - new description\n-- [foo-old-name](https://github.com/o/foo) - old description\n+- [bar](https://github.com/o/bar) - brand new\n`;
+    const items = parseAdditions(diff);
+    expect(items.map((i) => i.url)).toEqual(["https://github.com/o/bar"]);
+  });
+
+  it("keeps an addition if a later commit edits its description (pairing is per-commit)", () => {
+    const diff = `commit bbbbbbb\n-- [foo](https://github.com/o/foo) - first desc\n+- [foo](https://github.com/o/foo) - revised desc\ncommit aaaaaaa\n+- [foo](https://github.com/o/foo) - first desc\n`;
+    const items = parseAdditions(diff);
+    expect(items.map((i) => i.url)).toEqual(["https://github.com/o/foo"]);
+    expect(items[0].addedInCommit).toBe("aaaaaaa");
+  });
 });
 
 describe("scrapeRepo", () => {
