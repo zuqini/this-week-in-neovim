@@ -58,6 +58,6 @@ bd ready                                         # 15 ready issues today
 pnpm pipeline:scrape:reddit --subreddit=neovim --timeframe=week --limit=50
 pnpm pipeline:scrape:github-releases --owner=neovim --repo=neovim --since=7d
 pnpm pipeline:scrape:awesome-neovim --since=7d
-pnpm pipeline:enrich:links --date $(date -u +%Y-%m-%d)
+pnpm pipeline:enrich:links                       # --date defaults to most recent raw subdir (1f7)
 pnpm pipeline:eval:draft content/issues/2026-05-04.mdx --skip-links
 ```

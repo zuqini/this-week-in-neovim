@@ -70,8 +70,8 @@ function parsePayload(file: string, raw: unknown): FilePayload {
   const parsed = rawScrapeEnvelopeSchema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    const path = issue.path.length === 0 ? "(root)" : issue.path.join(".");
-    throw new Error(`${file}: invalid scrape envelope at ${path}: ${issue.message}`);
+    const where = issue.path.length === 0 ? "(root)" : issue.path.join(".");
+    throw new Error(`${file}: invalid scrape envelope at ${where}: ${issue.message}`);
   }
   const env = parsed.data as Record<string, unknown>;
   const items = env.items as unknown as EnrichItem[];

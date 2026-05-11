@@ -157,6 +157,7 @@ Seeded from the 2026-05-03 multi-agent review (`/arch-review` + `/review`).
 - Decision: extract on the **next** scraper, not this one. Three call sites is the threshold where extraction starts paying off, but the planned next scrapers (`q94` plugin-author feeds, `jzg` GH Search, `ei7` HN/Lobsters) each have meaningfully different arg shapes, so the helper's interface isn't obvious yet. Premature extraction now would force an early-and-wrong abstraction.
 - Anchor: pipeline/bin/scrape-reddit.ts, pipeline/bin/scrape-github-releases.ts, pipeline/bin/scrape-awesome-neovim.ts
 - Revisit when: `q94`, `jzg`, or `ei7` lands — bundle the extraction with the first one
+- History: 2026-05-10 — `pipeline/bin/enrich-links.ts` now has its own `parseArgs` shape too (different concerns: filesystem probing, no `--since`). When the scrape-* extraction fires, explicitly decide whether `enrich-links` folds in or stays separate with rationale.
 
 ### Drafter prompt does not enumerate `linkedContent: null`
 - Flagged: bug-finder noted the prompt's `linkedContent` kind union (`pipeline/prompts/draft.md:34-59`) omits the `null` case the classifier's `"unknown"` branch produces.
@@ -179,3 +180,46 @@ Seeded from the 2026-05-03 multi-agent review (`/arch-review` + `/review`).
 - Decision: deferred. Today reddit is the only source with a body-with-embedded-URLs shape; github-release notes live in `item.body` and are consumed directly by the drafter, not as enricher "extras". Generalizing prematurely (e.g., an `extraSourceText?: string` field on `EnrichItem` set by each projector) would design the abstraction with one example. The cast is ugly but localized — the leak is two lines that disappear when a second source needs the same treatment.
 - Anchor: pipeline/src/enrich/run.ts:58-79
 - Revisit when: a non-reddit source needs body-URL extraction (e.g., HN/Lobsters comments, Mastodon posts)
+
+### `mostRecentRawDate` selects dated subdirs by name pattern, not `isDirectory`
+- Flagged: `pipeline/bin/enrich-links.ts:45-54` filters `readdirSync` output with `^\d{4}-\d{2}-\d{2}$` only; a regular file with that exact name would be selected and downstream `readdir(rawDir)` would crash with ENOTDIR.
+- Decision: over-defensive for a writer-controlled directory. Only the scrape-* CLIs write under `pipeline/data/raw/`, and they always `mkdir` subdirectories. Adding `withFileTypes: true` + `isDirectory()` defends against a fault mode no code path produces — internal weekly-cadence pipeline; loud ENOTDIR if a human stages a stray file is fine.
+- Anchor: pipeline/bin/enrich-links.ts:45-54
+
+### `parseListing` throws on first malformed Reddit post — per-child fail-soft was rejected
+- Flagged: design-reviewer suggested per-child `safeParse` of `redditPostDataSchema` with `console.warn` for misses, matching the resilience pattern in `extractTopComments` and `github/releases.ts:projectRelease`.
+- Decision: rejected. The closed bead `der` explicitly required *"a malformed listing fails with a clear schema error pointing at the broken field"* — the throw is contractual and the test at `tests/pipeline/reddit-scrape.test.ts:259-274` pins it. Weekly cadence + ~50 items/run means loud failure is the right ergonomic: Reddit shape changes on r/neovim are vanishingly rare, and silent drop would mask the upstream-drift signal `der` was filed to surface. Operator fixes by re-running the scrape, once per quarter at most.
+- Anchor: pipeline/src/sources/reddit/scrape.ts:78-88
+- Filed: beads `der`
+
+### Extract `parseOrThrow(schema, raw, label)` helper shared between `parseListing` and `parsePayload`
+- Flagged: design-reviewer noted `pipeline/src/sources/reddit/scrape.ts:78-88` (`parseListing`) and `pipeline/bin/enrich-links.ts:69-79` (`parsePayload`) both `safeParse` and format `<path-joined>: <message>` errors — same code in two places.
+- Decision: deferred. Two call sites; the project's "extract on the next caller" pattern (see CLI arg-parse triplication) holds here too. When the next Zod-at-boundary call site appears (HN/Lobsters scraper, eval-input validation), extract once for all three with a clearer interface than two examples permit.
+- Anchor: pipeline/src/sources/reddit/scrape.ts:78-88, pipeline/bin/enrich-links.ts:69-79
+- Revisit when: a third Zod-at-boundary error-formatting call site appears
+
+### Reddit 12-field set triplicated across schema/`ProjectedPost`/`projectPost` literal
+- Flagged: design-reviewer noted the post field set appears in `redditPostDataSchema` (Zod), `ProjectedPost` (TS interface), and the explicit literal in `projectPost`; suggested `type ProjectedPost = Omit<z.infer<typeof redditPostDataSchema>, "permalink"> & {...}` + spread.
+- Decision: rejected. Because `redditPostDataSchema` uses `.passthrough()`, a `{ ...d, permalink: ... }` projection would carry Reddit's ~100 unmodeled per-post fields into on-disk raw JSON, bloating it ~8x. The explicit literal is the whitelist; the schema is the validator; the type is the contract — three roles, three forms, by design. The test pins exactly 12 keys (`Object.keys(projected).sort()`), so adding a 13th is a single-test failure that prompts intentional triplicate update.
+- Anchor: pipeline/src/sources/reddit/scrape.ts:30-44,51-66, pipeline/src/sources/reddit/schema.ts:3-19
+
+### Double cast from `ProjectedPost[]` to `EnrichItem[]` at the enrich boundary
+- Flagged: design-reviewer noted `tests/integration/harness.test.tsx:111-114` and `pipeline/bin/enrich-links.ts:77` both use `as unknown as EnrichItem[]`; root cause is `EnrichItem`'s `{ url: string; [k: string]: unknown }` index signature not absorbing narrower typed properties from `ProjectedPost`.
+- Decision: deferred. The cast is harmless ergonomics — every call site has a structural `url: string` by construction. Making `enrichBatch` generic `<T extends { url: string }>` (or adding a `toEnrichItems<T>` widening helper) touches `pipeline/src/enrich/run.ts`, every enrich test, the bin script, and the harness for a 1-LOC-per-site readability win and no type-safety gain. RoI negative.
+- Anchor: tests/integration/harness.test.tsx:111-114, pipeline/bin/enrich-links.ts:77
+
+### `stubFetch` in harness test matches `api.github.com` by substring
+- Flagged: design-reviewer noted `tests/integration/harness.test.tsx:65-77` would match `evil.example.com/api.github.com.html`; advised `new URL(url).hostname === "api.github.com"`.
+- Decision: deferred. Internal test stub with closed, hand-picked fixture URL set; no untrusted input. Tighten if/when `stubFetch` is promoted to a shared helper (same "wait for a second caller" pattern as the `withResetIssuesModule`/`withMockedIssues` decision above).
+- Anchor: tests/integration/harness.test.tsx:65-77
+
+### Uniform `.passthrough()` on Reddit Zod schemas
+- Flagged: design-reviewer suggested envelope schemas (`Listing`, `t3`/`t1` wrappers) be strict-mode to catch upstream drift earlier, keeping `.passthrough()` only on leaf data payloads.
+- Decision: kept uniform. The Reddit envelope shape (`kind`/`data` + listing tuple ordering) is stable across years; a new envelope key would trigger weekly cron failure for a key we don't read. Drift that *matters* manifests in leaf payloads as missing required fields, which the leaf-level schemas already catch in their default strict-field-presence mode. Uniform passthrough is the simpler mental model and weekly cadence absorbs the missed signal.
+- Anchor: pipeline/src/sources/reddit/schema.ts
+
+### Zod-at-scraper-boundary applied only to reddit
+- Flagged: design-reviewer noted `pipeline/src/sources/github/releases.ts:projectRelease` and `pipeline/src/sources/awesome-neovim/scrape.ts:parseAdditions` use hand-rolled defensive parsing (`typeof r.body === "string" ? r.body : ""`, `stringOrNull` helpers) while reddit now uses Zod. Pattern divergence across three scrapers.
+- Decision: deferred. Reddit's scrape volume (~50 items/week, 12 fields) justified Zod; github-releases (~5 releases/quarter, ~4 fields) and awesome-neovim (link-list diff, narrow surface) don't yet. Retrofit each when it next needs a substantive change. The Reddit shape is the precedent both for new scrapers and for the retrofits when they happen.
+- Anchor: pipeline/src/sources/github/releases.ts, pipeline/src/sources/awesome-neovim/scrape.ts
+- Revisit when: github-releases or awesome-neovim needs its next substantive change

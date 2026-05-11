@@ -88,7 +88,7 @@ function stubRedditClient(listing: unknown, matugenComments: unknown): RedditCli
     fetchComments: async (permalink) =>
       permalink === MATUGEN_PERMALINK_PATH
         ? matugenComments
-        : [{}, { data: { children: [] } }],
+        : [{}, { kind: "Listing", data: { children: [] } }],
   };
 }
 
