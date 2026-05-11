@@ -21,9 +21,10 @@ The drafter prompt works around this by telling the LLM to avoid those as citati
 
 ## Immediate priority — first real drafter run
 
-1. **`this-week-in-neovim-w5b`** [P2] — end-to-end integration test. Now unblocked: it can exercise the real scrape→enrich→eval seam (no LLM call; uses a hand-crafted draft-projection helper).
-2. **`this-week-in-neovim-der`** [P2] — Zod-validate the Reddit listing payload (the per-source equivalent of what `4oj` did at the envelope level).
-3. **`this-week-in-neovim-1f7`** [P3 bug] — `--date` defaults to today UTC; surprises around the scrape→enrich midnight boundary.
+1. **`this-week-in-neovim-der`** [P2] — Zod-validate the Reddit listing payload (the per-source equivalent of what `4oj` did at the envelope level).
+2. **`this-week-in-neovim-1f7`** [P3 bug] — `--date` defaults to today UTC; surprises around the scrape→enrich midnight boundary.
+
+The harness-equivalent integration test (`w5b`) shipped at `tests/integration/harness.test.tsx` — it exercises the scrape→enrich→draft-projection→frontmatter→citations→render seam against the checked-in Reddit fixtures with no network and no LLM (~500ms).
 
 The unmeasured-but-load-bearing next step is **actually running the prompt against the 2026-05-04 fixture in the external harness** and watching what eval says. The prompt's claims about which sources are citable are derived by reading the eval code — they're correct in theory; one real run will confirm in practice.
 
