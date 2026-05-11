@@ -14,12 +14,12 @@ Compass for the next agent picking up this project. **bd is the source of truth*
 - **Pipeline-robustness landed**: `1ra` (UA constant lives in `pipeline/src/http.ts`), `4oj` (Zod-validated `RawScrapePayload<T,P>` envelope; `enrich-links` rejects a malformed scrape file with a clear error). Reddit scraper now writes `items` (not `posts`); the live `2026-05-{04,10}` raw fixtures were one-shot migrated.
 - **New classifier kind**: `github-release` for `github.com/.../releases[/tag/...]` URLs, so the enricher does not fetch the wrong README. Release notes live in `item.body`.
 
-## Immediate priority — start drafting
+## Immediate priority — drafter prompt
 
-The four sources (Reddit selfposts + selftext extras, GitHub releases, awesome-neovim) now cover every section header in the launch issue's structure. The drafter is the next gate.
+The four sources (Reddit selfposts + selftext extras, GitHub releases, awesome-neovim) now cover every section header in the launch issue's structure. The drafter prompt — executed by a separate LLM harness project, not code in this repo — is the next gate.
 
-1. **Drafting** (LLM writes MDX from enriched JSON) — not yet filed. The eval harness gates the output; build the prompt + glue. Recommended next bd to file.
-2. **`this-week-in-neovim-w5b`** [P2] — end-to-end integration test. Now unblocked: it can exercise the real scrape→enrich→eval seam.
+1. **`this-week-in-neovim-qez`** [P1] — write `pipeline/prompts/draft.md`: the prompt the external harness invokes against enriched JSON to produce MDX. Eval still gates output (citations + faithfulness); only the prompt lives here. No new pipeline code.
+2. **`this-week-in-neovim-w5b`** [P2] — end-to-end integration test. Now unblocked: it can exercise the real scrape→enrich→eval seam (no LLM call; uses a hand-crafted draft-projection helper).
 3. **`this-week-in-neovim-der`** [P2] — Zod-validate the Reddit listing payload (the per-source equivalent of what `4oj` did at the envelope level).
 4. **`this-week-in-neovim-1f7`** [P3 bug] — `--date` defaults to today UTC; surprises around the scrape→enrich midnight boundary.
 
@@ -44,7 +44,7 @@ The four sources (Reddit selfposts + selftext extras, GitHub releases, awesome-n
 ## Good first commands
 
 ```bash
-bd ready                                         # 11 ready issues today
+bd ready                                         # 12 ready issues today
 pnpm pipeline:scrape:reddit --subreddit=neovim --timeframe=week --limit=50
 pnpm pipeline:scrape:github-releases --owner=neovim --repo=neovim --since=7d
 pnpm pipeline:scrape:awesome-neovim --since=7d
