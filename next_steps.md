@@ -8,6 +8,7 @@ Compass for the next agent picking up this project. **bd is the source of truth*
 - **Phase 2 P1 eval chain**: shipped (`6tn`, `f3l`, `y97`, `193`).
 - **Phase 2 P1 source-gap chain**: shipped (`owb`, `2pr`, `izm`, `j22`, `1ra`, `4oj`).
 - **Drafter prompt** (`qez`): shipped at `pipeline/prompts/draft.md`. Self-contained; the external LLM harness substitutes `{{ISSUE_NUMBER}}`, `{{DATE}}`, `{{ENRICHED_JSON}}` and emits MDX. The prompt is opinionated about the faithfulness-judge constraint — only top-level items with `linkedContent.content` (kinds `github-readme` / `html-article`) are safe to cite, because `loadSourceContent` in `pipeline/bin/eval-draft.ts` only reads top-level `item.linkedContent.content` (not `selftext`, not `body`, not `linkedContentExtras`).
+- **First drafter run** (`acz`): done 2026-05-10. An LLM drafter walked the 2026-05-04 fixture and emitted MDX at `pipeline/data/drafts/2026-05-04.draft.mdx`. `pnpm pipeline:eval:draft` passes all non-LLM checks: citations OK, 219 words in `[100, 10000]`, all 5 link HEADs return 2xx. The `--faithfulness` judge has not been run yet (token cost).
 
 ## Known faithfulness-eval gap (worth filing if it bites)
 
@@ -19,13 +20,20 @@ The faithfulness judge can't verify claims cited to:
 
 The drafter prompt works around this by telling the LLM to avoid those as citations. Closing the gap means teaching `loadSourceContent` to read `item.body`, `item.selftext`, and walk extras — and re-keying the URL→text map by every URL the source actually exposes (e.g. permalink AND any extras' URLs). Not filed yet — wait for the first real harness run to confirm the workaround is acceptable before adding code.
 
-## Immediate priority — first real drafter run
+## Immediate priority — faithfulness judge + source breadth
 
-`der` (Reddit-listing Zod schemas, projection now takes typed inputs, no `any`) and `1f7` (enrich-links `--date` defaults to most recent dated subdir under `pipeline/data/raw/`) shipped 2026-05-10. 50/50 items in the existing `2026-05-04` projection validate against the new schema; lenient comment fallback preserved.
+`acz` confirmed the prompt produces eval-clean MDX (citations, links, word count). The next unmeasured gate is the LLM-as-judge faithfulness pass on the same draft:
 
-The harness-equivalent integration test (`w5b`) shipped at `tests/integration/harness.test.tsx` — it exercises the scrape→enrich→draft-projection→frontmatter→citations→render seam against the checked-in Reddit fixtures with no network and no LLM (~500ms).
+```bash
+ANTHROPIC_API_KEY=… pnpm pipeline:eval:draft \
+  pipeline/data/drafts/2026-05-04.draft.mdx \
+  --faithfulness \
+  --enriched-dir pipeline/data/enriched/2026-05-04
+```
 
-The unmeasured-but-load-bearing next step is **actually running the prompt against the 2026-05-04 fixture in the external harness** and watching what eval says. The prompt's claims about which sources are citable are derived by reading the eval code — they're correct in theory; one real run will confirm in practice.
+This is opt-in because each run bills the Anthropic API. Useful baseline: the draft has 5 bullets cited to 5 sources, so the judge will issue ~5 LLM calls.
+
+The bigger observation from `acz`: **5/50 enriched items were faithfulness-citable** (kinds `github-readme` and `html-article`). The remaining 45 are `reddit-self` (38) and `video` (7), which the judge cannot read. Reddit alone yields ~10% citable coverage, which is why the source-breadth issues below matter — they directly raise the citable ratio.
 
 ## Source breadth (parallel, lower-coupling)
 
