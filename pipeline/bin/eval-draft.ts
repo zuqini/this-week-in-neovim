@@ -144,14 +144,26 @@ export async function runCli(argv: string[]): Promise<number> {
 /**
  * Maps each `sources[i].id` to source text for the faithfulness judge.
  *
- * Contract (mirrored by `pipeline/prompts/draft.md`): key is `item.url` on
- * top-level items only, and only when `linkedContent.content` is a non-empty
- * string. `selftext`, release `body`, `top_comments`, and
- * `linkedContentExtras` are not indexed. Lookup is exact string equality.
+ * Contract (mirrored by `pipeline/prompts/draft.md`):
+ *  - Top-level `item.url` is keyed when `linkedContent.content` is a non-empty
+ *    string (kinds `github-readme`, `html-article`).
+ *  - github-release items (`linkedContent.kind === "github-release"`) are keyed
+ *    by `item.url` with `item.body` as the source text, when `body` is a
+ *    non-empty string. Release notes live in `item.body`, not `linkedContent`.
+ *  - Reddit self-posts (`is_self === true`) are keyed by `item.permalink` with
+ *    `item.selftext` as the source text, when both are non-empty strings.
+ *    `permalink === item.url` for self-posts, so either citation form lands
+ *    on the same key. Embedded `preview.redd.it` image markdown rides along
+ *    as noise; the judge tolerates it.
+ *  - Each `linkedContentExtras[i].url` is keyed when that extra's `content` is
+ *    a non-empty string (same kinds; the README/article behind a Reddit
+ *    self-post is the canonical case).
+ *  - `top_comments` and `linkedContent.note` are not indexed.
  *
- * Changing the keying makes the drafter prompt silently wrong — update both.
+ * Lookup is exact string equality. Changing the keying makes the drafter
+ * prompt silently wrong — update both.
  */
-async function loadSourceContent(
+export async function loadSourceContent(
   enrichedDir: string,
   meta: IssueMeta,
 ): Promise<Map<string, SourceText>> {
@@ -172,11 +184,52 @@ async function loadSourceContent(
         ? (parsed as { items: unknown[] }).items
         : [];
     for (const raw of items) {
-      const item = raw as { url?: unknown; linkedContent?: unknown };
-      if (typeof item.url !== "string") continue;
-      const lc = item.linkedContent as { content?: unknown } | null | undefined;
-      if (lc && typeof lc.content === "string") {
-        urlToText.set(item.url, lc.content);
+      const item = raw as {
+        url?: unknown;
+        body?: unknown;
+        is_self?: unknown;
+        permalink?: unknown;
+        selftext?: unknown;
+        linkedContent?: unknown;
+        linkedContentExtras?: unknown;
+      };
+      if (typeof item.url === "string") {
+        const lc = item.linkedContent as
+          | { kind?: unknown; content?: unknown }
+          | null
+          | undefined;
+        if (lc && typeof lc.content === "string" && lc.content !== "") {
+          urlToText.set(item.url, lc.content);
+        }
+        if (
+          lc &&
+          lc.kind === "github-release" &&
+          typeof item.body === "string" &&
+          item.body !== ""
+        ) {
+          urlToText.set(item.url, item.body);
+        }
+      }
+      if (
+        item.is_self === true &&
+        typeof item.permalink === "string" &&
+        typeof item.selftext === "string" &&
+        item.selftext !== ""
+      ) {
+        urlToText.set(item.permalink, item.selftext);
+      }
+      const extras = item.linkedContentExtras;
+      if (Array.isArray(extras)) {
+        for (const rawExtra of extras) {
+          const extra = rawExtra as { url?: unknown; content?: unknown };
+          if (
+            typeof extra.url === "string" &&
+            typeof extra.content === "string" &&
+            extra.content !== ""
+          ) {
+            urlToText.set(extra.url, extra.content);
+          }
+        }
       }
     }
   }

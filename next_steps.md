@@ -2,31 +2,23 @@
 
 Compass for the next agent picking up this project. **bd is the source of truth** — this file points; the issues describe.
 
-## Where things stand (2026-05-11)
+## Where things stand (2026-05-10)
 
 - **Phase 1 (citation-first static site)**: shipped. Cloudflare Pages deploys via the Pages Git integration.
 - **Phase 2 P1 eval chain**: shipped (`6tn`, `f3l`, `y97`, `193`).
 - **Phase 2 P1 source-gap chain**: shipped (`owb`, `2pr`, `izm`, `j22`, `1ra`, `4oj`).
-- **Drafter prompt** (`qez`): shipped at `pipeline/prompts/draft.md`. Self-contained; the external LLM harness substitutes `{{ISSUE_NUMBER}}`, `{{DATE}}`, `{{ENRICHED_JSON}}` and emits MDX. The prompt is opinionated about the faithfulness-judge constraint — only top-level items with `linkedContent.content` (kinds `github-readme` / `html-article`) are safe to cite, because `loadSourceContent` in `pipeline/bin/eval-draft.ts` only reads top-level `item.linkedContent.content` (not `selftext`, not `body`, not `linkedContentExtras`).
-- **First drafter run** (`acz`): done 2026-05-10. An LLM drafter walked the 2026-05-04 fixture and emitted MDX at `pipeline/data/drafts/2026-05-04.draft.mdx`. `pnpm pipeline:eval:draft` passes all non-LLM checks: citations OK, 219 words in `[100, 10000]`, all 5 link HEADs return 2xx. The `--faithfulness` judge has not been run yet (token cost).
+- **Drafter prompt** (`qez`): shipped at `pipeline/prompts/draft.md`. Self-contained; the external LLM harness substitutes `{{ISSUE_NUMBER}}`, `{{DATE}}`, `{{ENRICHED_JSON}}` and emits MDX.
+- **First drafter run** (`acz`): done 2026-05-10. An LLM drafter walked the 2026-05-04 fixture and emitted MDX at `pipeline/data/drafts/2026-05-04.draft.mdx`. `pnpm pipeline:eval:draft` passes all non-LLM checks: citations OK, 219 words in `[100, 10000]`, all 5 link HEADs return 2xx.
+- **Eval-contract widening** (`n53`, `8bo`, `jr5`): shipped 2026-05-10. `loadSourceContent` in `pipeline/bin/eval-draft.ts` now indexes four shapes of source text: top-level `linkedContent.content`, github-release `item.body`, Reddit self-post `selftext` keyed by `permalink`, and `linkedContentExtras[i].content` keyed by each extra's URL. The drafter prompt's faithfulness section is rewritten to match. Regression tests live in `tests/pipeline/eval-draft.test.ts`. The 2026-05-04 fixture's ceiling jumps from 5 citable items to (5 + 38 self-posts + 3 plugin-announcement READMEs) = ~46 citable items.
 
-## Immediate priority — close the eval-contract gap that swallowed the week
+## Immediate priority — paid `--faithfulness` baseline on the next drafter run
 
-`acz` confirmed the prompt produces eval-clean MDX (citations, links, word count) but also exposed how little of the corpus the drafter can see. From the 2026-05-04 reddit-only fixture:
+The eval-contract gap is closed; the next concrete step is the LLM judge that the previous run deferred. Two options for the baseline pass:
 
-- 50 items scraped and enriched, 5 citable. The other 45 break down as 38 `reddit-self`, 7 `video`.
-- The dropped items include the **top 6 posts of the week by score**: matugen theme (287), godbolt-at-home (234), thorn.nvim (140), git-conflict plugin (105), treesitter discussion (97), and a meta thread on GitHub issue comments (81). All present in `pipeline/data/enriched/2026-05-04/reddit-neovim.json`, none citable.
-- Three Plugin-flair self-posts (lazydiff.nvim, godot-scenetree.nvim, nvim-appimage) have a fetched `github-readme` in `linkedContentExtras` — the enricher pulled it specifically to enable citation — but `loadSourceContent` only indexes top-level `item.url`, so the extras are dead weight.
+1. **Re-run the existing 2026-05-04 fixture** through `--faithfulness`. Cheap (~5 calls), measures the *old* prompt against the *new* contract. Useful as a regression-free sanity check before drafting on a wider corpus.
+2. **Re-draft 2026-05-04** with the updated prompt and the wider source pool, then run `--faithfulness`. Costs more (~20–50 calls depending on how much the drafter uses), but it measures the version of the system that will actually ship.
 
-The enrichment pipeline did its job; the eval-contract is the bottleneck. Three filed fixes, in order:
-
-1. **`n53`** — `loadSourceContent` walks `linkedContentExtras` and keys URL→text by every extra's URL. Highest ROI: unlocks 3 Plugin announcements per week from r/neovim alone, including the `lazydiff.nvim` example the drafter prompt teaches voice with.
-2. **`8bo`** — `loadSourceContent` indexes `item.selftext` keyed by `permalink` for Reddit self-posts. Unlocks ~30 substantive self-posts per week (thorn.nvim's 1115-char announcement, the 3511-char statuscolumn writeup, etc.). Depends on `n53` for the prompt-update pattern.
-3. **`jr5`** — `loadSourceContent` reads `item.body` for `github-release` items. Required before `izm`-shaped release data is useful to the drafter.
-
-Each one needs a matching update to `pipeline/prompts/draft.md` flipping the corresponding "avoid X as citation" guidance.
-
-Deferred (but still real): a paid `--faithfulness` baseline on the existing 5-bullet draft. Cheap (~5 LLM calls), measures the prompt rather than the contract — do it after the contract is fixed so we're measuring the version we'll actually ship.
+Recommend (2): the prompt has changed enough that (1) would baseline a near-dead branch. The first new draft should also start populating the missing sections (`## Updated plugins`, `## Notable posts & videos`, `## Community`).
 
 ```bash
 ANTHROPIC_API_KEY=… pnpm pipeline:eval:draft \

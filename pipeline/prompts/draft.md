@@ -121,36 +121,66 @@ Rules:
 #### Faithfulness — the binding constraint on what you can cite
 
 The faithfulness judge looks up each cited source's URL in the enriched
-inputs and reads `item.linkedContent.content` to decide whether your claim is
-supported by the source text. **It only reads `linkedContent.content` on
-top-level items. It does not read `selftext`, `body`, `top_comments`,
-`linkedContent.note`, or `linkedContentExtras`.**
+inputs and reads four places:
+
+1. Top-level `item.linkedContent.content`, when it is a non-empty string,
+   keyed by `item.url`.
+2. github-release `item.body`, when `linkedContent.kind === "github-release"`
+   and `body` is non-empty, keyed by `item.url`. Release notes live in
+   `item.body` and are now indexed.
+3. Reddit self-post `item.selftext`, when `item.is_self === true` and
+   `selftext` is non-empty, keyed by `item.permalink`. For self-posts
+   `item.url === item.permalink`, so either form works.
+4. Every `item.linkedContentExtras[i].content` that is a non-empty string,
+   keyed by the corresponding `extras[i].url`.
+
+**It does not read `top_comments` or `linkedContent.note`.**
 
 That means:
 
-- ✅ **Citable with verifiable content.** Top-level items whose
-  `linkedContent.kind` is `github-readme` or `html-article`. The `url` you put
-  in `sources[]` is `item.url` (the original `github.com/...` or article URL,
-  not the `raw.githubusercontent.com` URL inside `linkedContent`).
+- ✅ **Citable with verifiable content (top-level).** Items whose
+  `linkedContent.kind` is `github-readme` or `html-article`. The `url` you
+  put in `sources[]` is `item.url` (the original `github.com/...` or article
+  URL, not the `raw.githubusercontent.com` URL inside `linkedContent`).
+- ✅ **Citable with verifiable content (github-release).** Items whose
+  `linkedContent.kind` is `github-release` and whose `item.body` is a
+  non-empty string. Cite `item.url` — the release page on GitHub. The judge
+  reads `item.body` (the release notes) as the source text.
+- ✅ **Citable with verifiable content (reddit-self).** Reddit posts with
+  `is_self: true` and a non-empty `selftext`. Cite the permalink
+  (`item.permalink`, also equal to `item.url`). The judge will read
+  `selftext` as the source text — markdown link references and embedded
+  `preview.redd.it` image links ride along as noise and should not be
+  treated as the substance of a claim. Use this path for plugin
+  announcements, statuscolumn writeups, tips & tricks threads, etc.
+- ✅ **Citable with verifiable content (extras).** When an item has
+  `linkedContentExtras[i]` whose `kind` is `github-readme` or `html-article`
+  and `content` is non-empty, put `extras[i].url` (byte-for-byte) in
+  `sources[]` and cite it. Useful when a Reddit self-post's
+  README/article-quality content lives in the linked repo rather than the
+  selftext itself. For a `github-readme` extra the URL is typically
+  `https://raw.githubusercontent.com/<owner>/<repo>/HEAD/README.md` — use it
+  verbatim; the judge keys on exact equality.
 - ⚠️ **Citable but unverified by the judge.** Top-level items whose
-  `linkedContent.kind` is `github-release`, `reddit-self`, `reddit-media`,
-  `video`, or `fetch-failed`. The link-checker still validates the URL, but
-  the faithfulness judge will mark every claim cited to these sources as
-  unfaithful with reason `no source content available for [^id]`. **Avoid
-  these as citations** — describe the post in your own words by citing a
-  README or article from `linkedContentExtras` instead, when one exists, or
-  drop the item.
-- ⚠️ **Not a citable source URL even though the content is real.**
-  `linkedContentExtras[i].url` (e.g. a `raw.githubusercontent.com/.../README.md`
-  link inside a Reddit self-post) is not matched by the judge — only top-level
-  `item.url` is. You can use the extras' content to *understand* the post,
-  but you cannot cite the extras' URL. Cite the corresponding top-level item
-  with a verifiable kind, or skip the item.
+  `linkedContent.kind` is `reddit-media`, `video`, or `fetch-failed`,
+  **and** which have no usable `linkedContentExtras` entry and (for Reddit)
+  no usable `selftext`. Also `github-release` items with an empty `body`.
+  The link-checker still validates the URL, but the faithfulness judge will
+  mark every claim cited to these sources as unfaithful with reason
+  `no source content available for [^id]`. **Avoid these as citations** —
+  cite an extras entry, selftext, or another source instead, or drop the
+  item.
 
-When in doubt: **a source is safe to cite if and only if you can find an
-item in the enriched JSON whose `url` equals your `sources[i].url` AND whose
-`linkedContent.content` is a non-empty string.** Walk the inputs, list the
-URLs that satisfy that, and write only from that list.
+When in doubt: **a source is safe to cite if and only if you can find,
+somewhere in the enriched JSON, one of (a) a top-level item whose `url`
+equals your `sources[i].url` AND whose `linkedContent.content` is a
+non-empty string, (b) a github-release item whose `url` equals your
+`sources[i].url` AND whose `body` is a non-empty string, (c) a top-level
+Reddit self-post whose `permalink` (or equivalent `url`) equals your
+`sources[i].url` AND whose `selftext` is a non-empty string, or (d) an
+`extras[i]` whose `url` equals your `sources[i].url` AND whose `content` is
+a non-empty string.** Walk the inputs, list the URLs that satisfy that, and
+write only from that list.
 
 ---
 
@@ -176,24 +206,37 @@ Skip it on quiet weeks rather than padding.
 - **`## Neovim core`** — `source: "github-releases"` items for
   `neovim/neovim` (releases, nightly notes), plus any cited
   `html-article`/`github-readme` content that's about Neovim itself
-  (release-coverage blog posts, RFC explainers). Release notes themselves
-  live in `item.body`, which the judge cannot read — see the faithfulness
-  rules above.
+  (release-coverage blog posts, RFC explainers). Release notes live in
+  `item.body` and are citable: cite the release page URL and describe what
+  the body says.
 - **`## New plugins`** — `source: "awesome-neovim"` additions, plus Reddit
-  posts flaired `Plugin` whose top-level `linkedContent` is `github-readme`.
-  Cite the plugin's `github.com/<owner>/<repo>` URL (top-level `item.url`),
-  not the README's raw URL.
+  posts flaired `Plugin`. Two citation paths:
+  - If `linkedContent.kind` is `github-readme` (the post links straight to a
+    repo), cite the plugin's `github.com/<owner>/<repo>` URL (top-level
+    `item.url`), not the raw README URL.
+  - If the post is `reddit-self` and the repo announcement is in a
+    `linkedContentExtras[i]` of kind `github-readme`, cite the extras URL
+    (typically `raw.githubusercontent.com/<owner>/<repo>/HEAD/README.md`)
+    verbatim. The README content is what the judge will see.
 - **`## Updated plugins`** — `source: "github-releases"` items for plugin
   repos, and Reddit posts whose selftext describes a release of an existing
-  plugin. Same citation rule: `github.com/<owner>/<repo>` URL only.
+  plugin. Citation rules mirror `## New plugins`: top-level
+  `github.com/<owner>/<repo>` when the post links directly to the repo, or
+  the extras' README URL when the repo is referenced from inside a
+  self-post.
 - **`## Notable posts & videos`** — Reddit posts whose top-level
-  `linkedContent` is `html-article` (longer-form blog posts), and any
-  `html-article` items that came in via other sources. Genuine videos
+  `linkedContent` is `html-article` (longer-form blog posts), plus Reddit
+  self-posts whose `selftext` is substantial enough to draw a claim from
+  (the statuscolumn-in-97-LOC writeup is the prototypical case). Cite the
+  article URL or the post permalink respectively. Any `html-article` items
+  that came in via other sources also belong here. Genuine videos
   (`linkedContent.kind: "video"`) cannot be cited and should be omitted.
-- **`## Community`** — discussion-driven Reddit threads. These are mostly
-  `linkedContent.kind: "reddit-self"` and therefore not faithfulness-citable;
-  in practice you will usually omit this section unless a thread has a cited
-  blog post or README backing the discussion.
+- **`## Community`** — discussion-driven Reddit threads, primarily Reddit
+  self-posts whose value is in the question and the surrounding discussion.
+  These are now citable via `selftext` (keyed by `permalink`); use this
+  section only when the selftext frames a discussion the rest of the issue
+  doesn't already cover. Top-comment quotes are not in the judge's source
+  text — don't cite a thread for claims that live only in the comments.
 
 Cross-cutting rules:
 
@@ -252,10 +295,20 @@ bibliography. Skip them only if you have a reason.
 Do these steps in order, in your scratchpad if the harness gives you one:
 
 1. **Enumerate citable sources.** Walk every file in `{{ENRICHED_JSON}}`.
-   For each item, note `item.url`, `item.title` (or `title` analogue), and
-   whether `item.linkedContent.kind` is `github-readme` or `html-article` and
-   `item.linkedContent.content` is non-empty. The result is your candidate
-   citation pool.
+   For each item, record four kinds of candidates:
+   - If `item.linkedContent.kind` is `github-readme` or `html-article` and
+     `item.linkedContent.content` is non-empty, note `item.url` and
+     `item.title` (or `title` analogue) as a top-level candidate.
+   - If `item.linkedContent.kind` is `github-release` and `item.body` is a
+     non-empty string, note `item.url` and `item.title` as a release
+     candidate. The source text is the release notes body.
+   - If `item.is_self === true` and `item.selftext` is a non-empty string,
+     note `item.permalink` and `item.title` as a reddit-self candidate. The
+     source text is the selftext itself.
+   - For each `item.linkedContentExtras[i]` whose `kind` is `github-readme`
+     or `html-article` and whose `content` is non-empty, note `extras[i].url`
+     as an extras candidate; the parent item's title still describes it.
+   The union is your candidate citation pool.
 2. **Bucket candidates by section.** Apply the mapping rules above. An item
    may land in only one section; pick the most specific.
 3. **Drop weak items.** If a section has no citable items, omit it. If an
@@ -264,9 +317,11 @@ Do these steps in order, in your scratchpad if the harness gives you one:
 4. **Draft bullets.** For each kept item, write one or two bullets stating
    what the source actually says. Re-read the cited content while writing —
    do not paraphrase from memory.
-5. **Build `sources[]`.** Assign `id`s in citation order. Use the original
-   `item.url` as `url`. Pick a short `title` that disambiguates (the repo
-   slug, the article title, etc.).
+5. **Build `sources[]`.** Assign `id`s in citation order. For top-level
+   candidates use the original `item.url`; for reddit-self candidates use
+   `item.permalink` (equivalent to `item.url` for self-posts); for extras
+   candidates use `extras[i].url` byte-for-byte. Pick a short `title` that
+   disambiguates (the repo slug, the article title, etc.).
 6. **Write the opening paragraph and `summary`.** Both are derived from the
    bullets you just drafted; both must follow the same source-only rule.
    The `summary` may not contain citations (it's plain text for feeds), so
@@ -275,8 +330,11 @@ Do these steps in order, in your scratchpad if the harness gives you one:
    - Every `[^id]` in the body has a matching entry in `sources[]`.
    - Every entry in `sources[]` is cited at least once in the body.
    - No duplicate `id` in `sources[]`.
-   - Every `sources[i].url` corresponds to an item in `{{ENRICHED_JSON}}`
-     whose top-level `linkedContent.content` is a non-empty string.
+   - Every `sources[i].url` corresponds to either a top-level item in
+     `{{ENRICHED_JSON}}` whose `linkedContent.content` is a non-empty string,
+     a Reddit self-post whose `permalink` matches and whose `selftext` is a
+     non-empty string, or a `linkedContentExtras[i]` whose `content` is a
+     non-empty string.
    - Frontmatter `date` equals `{{DATE}}`.
    - Word count of body (excluding code blocks and footnote definitions) is
      between 100 and 10,000.
