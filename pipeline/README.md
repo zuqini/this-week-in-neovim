@@ -177,7 +177,7 @@ Reads `pipeline/data/raw/<date>/*.json`, writes `pipeline/data/enriched/<date>/<
 
 No code lives in this repo for the draft stage — it is executed by an external LLM harness that substitutes `{{ISSUE_NUMBER}}`, `{{DATE}}`, and `{{ENRICHED_JSON}}` (the parsed contents of `pipeline/data/enriched/<DATE>/`) into the prompt and emits an MDX file. The prompt is the contract. It encodes the frontmatter/citation schema, the faithfulness rules the next stage will enforce, and the editorial voice.
 
-The faithfulness rule is load-bearing: a source is citable iff its `sources[].url` equals a top-level `item.url` whose `linkedContent.content` is a non-empty string. `loadSourceContent` in `pipeline/bin/eval-draft.ts` is the code-side mirror — keep both in sync.
+The faithfulness rule is load-bearing: a source is citable iff its `sources[].url` keys into one of four places — a top-level `item.linkedContent.content` (kinds `github-readme`/`html-article`), a github-release `item.body`, a Reddit self-post `item.selftext` keyed by `item.permalink`, or a `linkedContentExtras[i].content`. `loadSourceContent` in `pipeline/bin/eval-draft.ts` is the code-side mirror — keep both in sync.
 
 ## Eval (`pipeline/bin/eval-draft.ts` + `pipeline/src/eval/`)
 

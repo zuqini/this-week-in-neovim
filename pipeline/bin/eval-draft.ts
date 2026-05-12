@@ -183,8 +183,8 @@ export async function loadSourceContent(
       : Array.isArray((parsed as { items?: unknown }).items)
         ? (parsed as { items: unknown[] }).items
         : [];
-    for (const raw of items) {
-      const item = raw as {
+    for (const rawItem of items) {
+      const item = rawItem as {
         url?: unknown;
         body?: unknown;
         is_self?: unknown;

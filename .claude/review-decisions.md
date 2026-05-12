@@ -211,3 +211,36 @@ Schema: `title` / `Flagged` / `Decision` required; `Type` / `Anchor` / `Filed` /
 - Decision: deferred. Reddit's volume (50/week, 12 fields) justified Zod; github-releases (~5/quarter, 4 fields) and awesome-neovim (narrow link-list diff) don't yet. Retrofit each when it next changes substantively; reddit is the precedent.
 - Anchor: pipeline/src/sources/github/releases.ts, pipeline/src/sources/awesome-neovim/scrape.ts
 - Revisit when: github-releases or awesome-neovim needs its next substantive change
+
+### `loadSourceContent` whitespace-only `body`/`selftext`/`content` slips past `!== ""`
+- Flagged: bug-finder warned `xyz !== ""` lets `"\n"` / `"   "` / `" "` index, allowing the drafter to "cite" effectively-empty source text.
+- Decision: rejected. Inputs are operator-controlled (scrape-* and enrich-links write the files); GitHub release bodies are either substantive (auto-gen template or human-written) or `null`/`""`; Reddit `[removed]`/`[deleted]` selftext is the literal string, not whitespace; `fetchReadme`/`fetchArticle` produce truncated content at 65 KiB. The failure mode is self-correcting — whitespace gives the drafter nothing to cite, and the faithfulness judge would mark such a citation unfaithful anyway. Trimming adds a guard for a class of inputs that doesn't occur.
+- Anchor: pipeline/bin/eval-draft.ts (`loadSourceContent`)
+- Revisit when: a real production faithfulness failure traces to whitespace-only indexed source
+
+### `loadSourceContent` extras silently overwrite top-level on URL collision
+- Flagged: bug-finder + design-reviewer noted the extras loop unconditionally `urlToText.set(extra.url, extra.content)`, allowing extras to override an earlier top-level entry for the same URL with filesystem-readdir ordering.
+- Decision: rejected. The within-item case is impossible (extras URLs come from selftext extraction, never the post's own `url`). The cross-item case requires the same external URL to appear as both a top-level `item.url` and an `extras[i].url` of a different post — both branches are fetching the same URL via the same enricher, so the two copies are content-equivalent modulo fetch time. Precedence choice is essentially "either, doesn't matter."
+- Anchor: pipeline/bin/eval-draft.ts (extras loop)
+- Revisit when: a faithfulness drift is observed for a URL that appears as both top-level and an extra in the same `enrichedDir`
+
+### `loadSourceContent` per-file JSON.parse has no filename context on failure
+- Flagged: bug-finder noted a single malformed file in `enrichedDir` blows up the run with a context-free `SyntaxError` and no indication which file failed.
+- Decision: rejected. Files in `enrichedDir` are operator-controlled (only scrape-*/enrich-links write them, both via atomic-ish single writes). Half-write requires process kill mid-write; mis-edit is recoverable in 30 seconds by `ls -lt`. Defensive wrapping for a failure that essentially doesn't happen in single-operator weekly cadence isn't worth the 4 lines.
+- Anchor: pipeline/bin/eval-draft.ts (`loadSourceContent` JSON.parse)
+
+### `loadSourceContent` mixed discriminator-vs-structural keying across four shapes
+- Flagged: design-reviewer suggested lifting each of the four indexing branches (`linkedContent.content`, `github-release` body, `is_self` selftext, `linkedContentExtras`) to named local indexers or `{key, text}` candidates, since each uses a different gating signal in one tight block.
+- Decision: deferred per "extract on the next caller" pattern. Four shapes is the current ceiling; a fifth would tip the design toward named indexers. The current ~30 lines are readable and the four-way contract is anchored in the docstring above the function.
+- Anchor: pipeline/bin/eval-draft.ts (`loadSourceContent`, lines 196-233)
+- Revisit when: a fifth citable shape lands
+
+### `loadSourceContent` Reddit selftext keyed by `permalink` while other branches key by `url`
+- Flagged: design-reviewer noted the selftext branch keys by `item.permalink` (asymmetric with the github-readme / github-release branches which key by `item.url`), relying on the contract `permalink === item.url` for self-posts.
+- Decision: kept. The equality is a property of the Reddit projection (`projectPost` builds the permalink, and self-posts have `url = permalink`); the prompt tells the LLM either form works; the test pins the key choice. Inserting both keys is belt-and-suspenders against a Reddit API decoupling that has no precedent.
+- Anchor: pipeline/bin/eval-draft.ts (`loadSourceContent`, lines 213-219)
+
+### `loadSourceContent` extras gate is structural (`typeof content === "string"`) while prompt gate is by kind whitelist
+- Flagged: bug-finder noted the prompt requires extras `kind ∈ { github-readme, html-article }` while the code only checks `typeof extra.content === "string"`. Functionally equivalent today (only those two `EnrichedLink` variants set a string `content`); the two gates could drift.
+- Decision: kept. The code's structural check is the actual contract ("if it has string content, it's indexable"); the prompt's kind whitelist is the LLM-facing description of which kinds produce that content. Adding a kind gate in code is redundant typing — a future `EnrichedLink` variant adding string `content` would also need a prompt update, and the bug-finder check would catch it then.
+- Anchor: pipeline/bin/eval-draft.ts (extras loop), pipeline/prompts/draft.md (extras rules)

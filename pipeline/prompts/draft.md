@@ -127,7 +127,7 @@ inputs and reads four places:
    keyed by `item.url`.
 2. github-release `item.body`, when `linkedContent.kind === "github-release"`
    and `body` is non-empty, keyed by `item.url`. Release notes live in
-   `item.body` and are now indexed.
+   `item.body`, not `linkedContent`.
 3. Reddit self-post `item.selftext`, when `item.is_self === true` and
    `selftext` is non-empty, keyed by `item.permalink`. For self-posts
    `item.url === item.permalink`, so either form works.
@@ -233,9 +233,9 @@ Skip it on quiet weeks rather than padding.
   (`linkedContent.kind: "video"`) cannot be cited and should be omitted.
 - **`## Community`** — discussion-driven Reddit threads, primarily Reddit
   self-posts whose value is in the question and the surrounding discussion.
-  These are now citable via `selftext` (keyed by `permalink`); use this
-  section only when the selftext frames a discussion the rest of the issue
-  doesn't already cover. Top-comment quotes are not in the judge's source
+  These are citable via `selftext` (keyed by `permalink`); use this section
+  only when the selftext frames a discussion the rest of the issue doesn't
+  already cover. Top-comment quotes are not in the judge's source
   text — don't cite a thread for claims that live only in the comments.
 
 Cross-cutting rules:
@@ -332,8 +332,9 @@ Do these steps in order, in your scratchpad if the harness gives you one:
    - No duplicate `id` in `sources[]`.
    - Every `sources[i].url` corresponds to either a top-level item in
      `{{ENRICHED_JSON}}` whose `linkedContent.content` is a non-empty string,
-     a Reddit self-post whose `permalink` matches and whose `selftext` is a
-     non-empty string, or a `linkedContentExtras[i]` whose `content` is a
+     a github-release item whose `url` matches and whose `body` is a non-empty
+     string, a Reddit self-post whose `permalink` matches and whose `selftext`
+     is a non-empty string, or a `linkedContentExtras[i]` whose `content` is a
      non-empty string.
    - Frontmatter `date` equals `{{DATE}}`.
    - Word count of body (excluding code blocks and footnote definitions) is
