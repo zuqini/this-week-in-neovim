@@ -2,49 +2,34 @@
 
 Compass for the next agent. **bd is the source of truth** — this file points; the issues describe.
 
-## Status (2026-05-10)
+## Immediate — paid `--faithfulness` baseline on 2026-05-04
 
-- **Phase 1 (site)** and **Phase 2 P1 (eval chain, source-gap chain, drafter prompt, first drafter run)**: shipped. `pipeline/data/drafts/2026-05-04.draft.mdx` passes citations / links / word-count; `--faithfulness` not yet run.
-- **Eval-contract widening** (`n53` / `8bo` / `jr5`, shipped 2026-05-10): `loadSourceContent` now indexes top-level `linkedContent.content`, github-release `item.body`, Reddit `selftext` (keyed by `permalink`), and `linkedContentExtras[i].content`. Citable ceiling on the 2026-05-04 fixture: 5 → ~46. Prompt at `pipeline/prompts/draft.md` rewritten to match.
+The eval-contract widening (`n53`/`8bo`/`jr5`, 2026-05-10) raised the 2026-05-04 fixture's citable ceiling from 5 to ~46. The existing `pipeline/data/drafts/2026-05-04.draft.mdx` was written against the narrow contract and is a near-dead branch.
 
-## Immediate priority — paid `--faithfulness` baseline on a fresh re-draft
-
-Re-draft 2026-05-04 against the updated prompt and run `--faithfulness` on the result. Don't baseline the existing 2026-05-10 draft — it was written against the narrow contract and would measure a near-dead branch. The new draft should begin populating `## Updated plugins`, `## Notable posts & videos`, and `## Community`.
+**You are the drafter.** No in-repo CLI — per `qez`, the harness lives outside this repo. Read `pipeline/prompts/draft.md` + `pipeline/data/enriched/2026-05-04/*.json`, emit a fresh `pipeline/data/drafts/2026-05-04.draft.mdx`, then:
 
 ```bash
 ANTHROPIC_API_KEY=… pnpm pipeline:eval:draft \
   pipeline/data/drafts/2026-05-04.draft.mdx \
-  --faithfulness \
-  --enriched-dir pipeline/data/enriched/2026-05-04
+  --faithfulness --enriched-dir pipeline/data/enriched/2026-05-04
 ```
 
-Known loss: `v.redd.it` videos — no transcript, no related-URL extraction. Revisit only if they keep topping the week.
+`v.redd.it` videos have no transcript and won't be citable; revisit only if they keep topping the week.
 
 ## Source breadth (parallel, lower-coupling)
 
-| Section | Shipped | P2 follow-ups | P3 follow-ups |
+| Section | Shipped | P2 | P3 |
 |---|---|---|---|
-| `## Neovim core` | `izm` (releases) | `8gz` Discussions/RFC | — |
-| `## New plugins` | `j22` (awesome-neovim) | `jzg` GitHub Search cross-validator | — |
+| `## Neovim core` | `izm` releases | `8gz` Discussions/RFC | — |
+| `## New plugins` | `j22` awesome-neovim | `jzg` GitHub Search | — |
 | `## Updated plugins` | — | `q94` plugin-author release feeds | — |
-| `## Notable posts & videos` | — | `hmn` YouTube channel RSS | `ei7` HN/Lobsters, `40l` dev-blog RSS |
+| `## Notable posts & videos` | — | `hmn` YouTube RSS | `ei7` HN/Lobsters, `40l` dev-blog RSS |
 | `## Community` | — | — | `4kv` Mastodon #neovim |
-| cross-cutting | reddit r/neovim (selfposts + extras) | — | — |
+| cross-cutting | reddit r/neovim | — | — |
 
 ## Conventions
 
-- **Read `.claude/review-decisions.md` before flagging design issues.** Recurring rejections are documented there.
-- **`pipeline/` ↔ `app/lib/components/` stay decoupled.** `lib/citations.ts` is the only shared seam (intentionally `import type`-coupled to `lib/issues/schema.ts`).
-- **`RawScrapePayload<T, P>`** in `pipeline/src/types.ts` is the cross-source envelope. New scrapers emit `{ source, fetchedAt, params, items }`; `enrich-links` rejects anything else.
-- **Eval can't catch bad source content.** It checks bullet-vs-source faithfulness, not whether the source is worth citing. Classifier and enricher are the gates there.
-
-## Good first commands
-
-```bash
-bd ready
-pnpm pipeline:scrape:reddit --subreddit=neovim --timeframe=week --limit=50
-pnpm pipeline:scrape:github-releases --owner=neovim --repo=neovim --since=7d
-pnpm pipeline:scrape:awesome-neovim --since=7d
-pnpm pipeline:enrich:links                       # --date defaults to most recent raw subdir
-pnpm pipeline:eval:draft content/issues/2026-05-04.mdx --skip-links
-```
+- Read `.claude/review-decisions.md` first — accepted tradeoffs not to re-flag.
+- `pipeline/` ↔ `app/lib/` decoupled; `lib/citations.ts` is the shared seam.
+- New scrapers emit `RawScrapePayload<T, P>` (`pipeline/src/types.ts`).
+- Eval checks bullet-vs-source faithfulness, not whether the source is worth citing.
