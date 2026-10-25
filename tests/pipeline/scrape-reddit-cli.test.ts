@@ -42,6 +42,7 @@ describe("scrape-reddit CLI", () => {
 
   afterEach(async () => {
     globalThis.fetch = oldFetch;
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     await rm(workdir, { recursive: true, force: true });
   });
@@ -70,6 +71,60 @@ describe("scrape-reddit CLI", () => {
     await runCli(["--cdp-url", "--no-comments", `--out-dir=${workdir}`]);
 
     expect(browserMock.openBrowserFetch).toHaveBeenCalledWith("http://127.0.0.1:9222");
+  });
+
+  it("accepts --cdp-url <url> with a space", async () => {
+    browserMock.openBrowserFetch.mockResolvedValue({
+      fetch: vi.fn().mockResolvedValue(jsonResponse(EMPTY_LISTING)),
+      close: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await runCli(["--cdp-url", "http://127.0.0.1:9333", "--no-comments", `--out-dir=${workdir}`]);
+
+    expect(browserMock.openBrowserFetch).toHaveBeenCalledWith("http://127.0.0.1:9333");
+  });
+
+  it("bare --cdp-url follows TWIN_CDP_PORT, matching the launcher", async () => {
+    vi.stubEnv("TWIN_CDP_PORT", "9444");
+    browserMock.openBrowserFetch.mockResolvedValue({
+      fetch: vi.fn().mockResolvedValue(jsonResponse(EMPTY_LISTING)),
+      close: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await runCli(["--cdp-url", "--no-comments", `--out-dir=${workdir}`]);
+
+    expect(browserMock.openBrowserFetch).toHaveBeenCalledWith("http://127.0.0.1:9444");
+  });
+
+  it("rejects an empty --cdp-url= instead of falling back to logged-out fetch", async () => {
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const code = await runCli(["--cdp-url=", "--no-comments", `--out-dir=${workdir}`]);
+
+    expect(code).toBe(1);
+    expect(stderr).toContain("invalid --cdp-url=");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("closes the browser session and re-raises on SIGINT/SIGTERM mid-scrape", async () => {
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const close = vi.fn().mockResolvedValue(undefined);
+    let finishFetch!: (r: Response) => void;
+    const sessionFetch = vi.fn(() => new Promise<Response>((resolve) => (finishFetch = resolve)));
+    browserMock.openBrowserFetch.mockResolvedValue({ fetch: sessionFetch, close });
+    const sigintBefore = process.listenerCount("SIGINT");
+    const sigtermBefore = process.listenerCount("SIGTERM");
+
+    const run = runCli(["--cdp-url", "--no-comments", `--out-dir=${workdir}`]);
+    await vi.waitFor(() => expect(sessionFetch).toHaveBeenCalled());
+    process.emit("SIGTERM", "SIGTERM");
+    await vi.waitFor(() => expect(kill).toHaveBeenCalledWith(process.pid, "SIGTERM"));
+    expect(close).toHaveBeenCalled();
+
+    finishFetch(jsonResponse(EMPTY_LISTING));
+    await run;
+    expect(process.listenerCount("SIGINT")).toBe(sigintBefore);
+    expect(process.listenerCount("SIGTERM")).toBe(sigtermBefore);
   });
 
   it("closes the browser session even when the scrape fails", async () => {

@@ -55,6 +55,12 @@ export function defaultClient(opts: DefaultClientOpts = {}): RedditClient {
       lastCallAt = Date.now();
 
       if (response.ok) {
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!contentType.includes("json")) {
+          throw new Error(
+            `Reddit served ${contentType || "a non-JSON response"} (HTTP ${response.status}) for ${url} — the session may be signed out, blocked, or challenged`,
+          );
+        }
         return (await response.json()) as unknown;
       }
 

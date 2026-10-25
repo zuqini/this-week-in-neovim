@@ -9,7 +9,7 @@ import {
   type Timeframe,
 } from "../src/sources/reddit/client.js";
 import {
-  DEFAULT_CDP_URL,
+  defaultCdpUrl,
   openBrowserFetch,
   type BrowserFetchSession,
 } from "../src/sources/reddit/browser.js";
@@ -28,13 +28,18 @@ const TIMEFRAMES: readonly Timeframe[] = ["day", "week", "month"] as const;
 function parseArgs(argv: string[]): CliArgs {
   const flags = new Map<string, string>();
   const bools = new Set<string>();
-  for (const a of argv) {
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
     if (!a.startsWith("--")) continue;
     const eq = a.indexOf("=");
-    if (eq === -1) {
-      bools.add(a.slice(2));
-    } else {
+    const next = argv[i + 1];
+    if (eq !== -1) {
       flags.set(a.slice(2, eq), a.slice(eq + 1));
+    } else if (a === "--cdp-url" && next !== undefined && !next.startsWith("--")) {
+      flags.set("cdp-url", next);
+      i++;
+    } else {
+      bools.add(a.slice(2));
     }
   }
 
@@ -52,7 +57,10 @@ function parseArgs(argv: string[]): CliArgs {
   }
   const outDir = flags.get("out-dir") ?? "pipeline/data/raw";
   const withComments = !bools.has("no-comments");
-  const cdpUrl = bools.has("cdp-url") ? DEFAULT_CDP_URL : flags.get("cdp-url");
+  if (flags.get("cdp-url") === "") {
+    throw new Error(`invalid --cdp-url=; pass a URL, or the bare flag for ${defaultCdpUrl()}`);
+  }
+  const cdpUrl = bools.has("cdp-url") ? defaultCdpUrl() : flags.get("cdp-url");
 
   return {
     subreddit,
@@ -89,8 +97,15 @@ export async function runCli(argv: string[]): Promise<number> {
 
   let result;
   let session: BrowserFetchSession | undefined;
+  // `once` has already dropped this handler, so re-raising the signal gets the default termination.
+  const closeOnSignal = (signal: NodeJS.Signals) => {
+    void Promise.resolve(session?.close()).finally(() => process.kill(process.pid, signal));
+  };
   try {
-    if (args.cdpUrl) session = await openBrowserFetch(args.cdpUrl);
+    if (args.cdpUrl) {
+      session = await openBrowserFetch(args.cdpUrl);
+      process.once("SIGINT", closeOnSignal).once("SIGTERM", closeOnSignal);
+    }
     result = await scrapeReddit(options, defaultClient({ fetch: session?.fetch }));
   } catch (err) {
     process.stderr.write(`scrape-reddit: ${formatErr(err)}\n`);
@@ -99,6 +114,7 @@ export async function runCli(argv: string[]): Promise<number> {
     }
     return 1;
   } finally {
+    process.off("SIGINT", closeOnSignal).off("SIGTERM", closeOnSignal);
     await session?.close();
   }
 

@@ -114,6 +114,18 @@ describe("reddit client — fetchListing", () => {
     ).rejects.toThrow(/403.*forbidden body/);
   });
 
+  it.each([200, 203])("fails loudly on a %i HTML page instead of a JSON parse error", async (status) => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("<html>login</html>", { status, headers: { "Content-Type": "text/html" } }),
+    );
+    const client = defaultClient({ fetch: fetchMock, sleep: vi.fn() });
+
+    await expect(
+      client.fetchListing({ subreddit: "neovim", timeframe: "week", limit: 5 }),
+    ).rejects.toThrow(new RegExp(`served text/html \\(HTTP ${status}\\) for https://www\\.reddit\\.com/r/neovim/top\\.json`));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("waits 1s between consecutive successful calls", async () => {
     const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ ok: true }));
     const sleep = vi.fn().mockResolvedValue(undefined);
