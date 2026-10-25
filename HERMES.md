@@ -36,11 +36,12 @@ Reddit has returned 403 for logged-out `.json` requests since ~2026-05-30, and t
 - `pipeline/src/sources/reddit/browser.ts` — `openBrowserFetch(cdpUrl)` does the following:
   - attaches to a running Chrome via `playwright-core`'s `connectOverCDP`
   - opens **one** tab on `https://www.reddit.com/robots.txt` (a static same-origin page; the SPA home page re-navigates and kills the evaluate context)
-  - runs `fetch(url, { credentials: "include" })` inside that tab and returns a real `Response`
+  - fails loudly if that anchor isn't a 2xx or lands off `www.reddit.com` (redirect, consent or challenge page)
+  - runs `fetch(url, { credentials: "include" })` inside that tab with a 30 s deadline and returns a real `Response`
   - leaves the existing client's 1 req/s pacing, `Retry-After` handling and 5xx backoff unchanged
-  - throws when Reddit serves HTML instead of JSON
+  - the client throws when Reddit serves HTML instead of JSON (any 2xx, either transport)
   - `close()` closes only its tab and disconnects; Chrome keeps running
-- `pipeline/bin/scrape-reddit.ts` — `--cdp-url[=<url>]`; the bare flag means `http://127.0.0.1:9222`. A 403 prints a hint naming the fix.
+- `pipeline/bin/scrape-reddit.ts` — `--cdp-url[=<url>]` (or `--cdp-url <url>`); the bare flag means `http://127.0.0.1:$TWIN_CDP_PORT` (default 9222). A 403 prints a hint naming the fix. Ctrl-C / SIGTERM closes the scraper's tab before exiting.
 - `pipeline/bin/chrome-cdp.sh` / `pnpm pipeline:chrome` launches Chrome with a dedicated profile (`~/.config/twin-chrome`) and CDP on port 9222. Chrome 136+ refuses remote debugging on the default profile. Overrides: `TWIN_CDP_PORT`, `TWIN_CHROME_PROFILE`, `CHROME`.
 - Already verified by Claude: the CDP attach, the in-tab fetch, tab cleanup, and the signed-out 403 hint, all against real Chrome 156.
 - **Not yet verified:** whether a *signed-in* session gets JSON back. That is the point of your test.
@@ -85,7 +86,9 @@ Run these on the host where the signed-in Chrome runs.
 |---|---|---|
 | `cannot connect to Chrome at …` | Chrome not running, or no CDP | step 1 |
 | `Reddit request failed: 403` + "signed into Reddit?" hint | signed out, **or** Reddit blocks `.json` even when signed in | check the window. If it's signed in and still 403, that's the key finding: report it |
-| `Reddit served text/html … signed out or challenged` | login wall, block page, or challenge | don't solve it. Report with a screenshot |
+| `opening https://www.reddit.com/robots.txt landed on …` | anchor page blocked, redirected, or challenged | don't solve it. Report the URL/status with a screenshot |
+| `Reddit served text/html … signed out, blocked, or challenged` | login wall, block page, or challenge | don't solve it. Report with a screenshot |
+| `TimeoutError` / `signal timed out` | a Reddit request stalled past 30 s | re-run once; if it repeats, report it |
 | `Execution context was destroyed` | anchor-page regression | report it with the full stderr |
 | `reddit listing schema mismatch at <path>` | Reddit changed the JSON shape | report the path. Don't loosen the schema (see review-decisions, bead `der`) |
 

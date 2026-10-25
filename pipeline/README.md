@@ -34,9 +34,9 @@ Weekly run, with that Chrome open:
 pnpm pipeline:scrape:reddit -- --cdp-url --subreddit=neovim --timeframe=week --limit=25
 ```
 
-The scraper attaches over CDP, opens one tab on `reddit.com/robots.txt` (a static same-origin page), issues same-origin `fetch`es with the profile's session, then closes that tab and disconnects — Chrome itself keeps running. Hermes can attach to the same instance (`/browser connect http://127.0.0.1:9222`).
+The scraper attaches over CDP, opens one tab on `reddit.com/robots.txt` (a static same-origin page; a non-2xx or off-origin landing fails the run), issues same-origin `fetch`es with the profile's session (30 s deadline each), then closes that tab and disconnects — Chrome itself keeps running. Ctrl-C / SIGTERM also closes the tab. Hermes can attach to the same instance (`/browser connect http://127.0.0.1:9222`).
 
-Flags (all `--key=value`):
+Flags (all `--key=value`; `--cdp-url` also takes `--cdp-url <url>`):
 
 | Flag | Default | Notes |
 |---|---|---|
@@ -45,13 +45,19 @@ Flags (all `--key=value`):
 | `--limit` | `50` | listing size; Reddit caps at 100 |
 | `--out-dir` | `pipeline/data/raw` | date-stamped subdir is created beneath this |
 | `--no-comments` | off | skip the per-post comment fetch (fast iteration) |
-| `--cdp-url` | off | fetch through a signed-in Chrome; bare flag means `http://127.0.0.1:9222`. Without it, plain unauthenticated `fetch` is used (403s today; kept for the OAuth swap, bead `0vb`) |
+| `--cdp-url` | off | fetch through a signed-in Chrome; bare flag means `http://127.0.0.1:$TWIN_CDP_PORT` (default `9222`, same as the launcher); an empty `--cdp-url=` is an error. Without it, plain unauthenticated `fetch` is used (403s today; kept for the OAuth swap, bead `0vb`) |
 
 Writes `<out-dir>/<YYYY-MM-DD>/reddit-<subreddit>.json` (UTC date). Idempotent — re-running the same day overwrites the same file. One stdout line: `wrote N posts → <path>` (English copy; the JSON field is `items`).
 
 #### Env vars
 
-None. The browser profile carries the session.
+No credentials — the browser profile carries the session.
+
+| Var | Default | Used by |
+|---|---|---|
+| `TWIN_CDP_PORT` | `9222` | `pnpm pipeline:chrome` and bare `--cdp-url` |
+| `TWIN_CHROME_PROFILE` | `~/.config/twin-chrome` | `pnpm pipeline:chrome` |
+| `CHROME` | platform Chrome binary | `pnpm pipeline:chrome` |
 
 #### Output schema
 
@@ -118,7 +124,7 @@ Scrapes the GitHub Releases API for a single repository — the `## Neovim core`
 pnpm pipeline:scrape:github-releases --owner=neovim --repo=neovim --since=7d
 ```
 
-Flags (all `--key=value`):
+Flags (all `--key=value`; `--cdp-url` also takes `--cdp-url <url>`):
 
 | Flag | Default | Notes |
 |---|---|---|
@@ -141,7 +147,7 @@ Diffs `rockerBOO/awesome-neovim`'s README.md to extract additions — the `## Ne
 pnpm pipeline:scrape:awesome-neovim --since=7d
 ```
 
-Flags (all `--key=value`):
+Flags (all `--key=value`; `--cdp-url` also takes `--cdp-url <url>`):
 
 | Flag | Default | Notes |
 |---|---|---|

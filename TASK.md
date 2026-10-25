@@ -65,7 +65,7 @@ lib/issues.ts             # fs.readdir + gray-matter + Zod, server-only
 ### Weekly pipeline (lives in `pipeline/`, invoked by an LLM harness)
 TypeScript (Node 22, same toolchain as the site). The pipeline is a set of small CLIs the **LLM drafting harness** invokes as bash tools during a weekly drafting session — not a GH Actions cron job. The harness orchestrates: run scrapers → run enricher → read enriched JSON → draft MDX → self-eval → open PR. Stages:
 1. **Scrape** — one CLI per source. Each scraper writes `pipeline/data/raw/<YYYY-MM-DD>/<source>.json` (UTC date, idempotent on re-run). Prefer official APIs/JSON over HTML scraping to respect ToS:
-   - r/neovim → `https://www.reddit.com/r/{sub}/top.json` with identifying User-Agent (load-bearing); migrate to OAuth client_credentials when the registered Reddit app is approved.
+   - r/neovim → `https://www.reddit.com/r/{sub}/top.json`, fetched from inside the owner's signed-in Chrome over CDP (`scrape-reddit --cdp-url`; logged-out `.json` has returned 403 since ~2026-05-30). The plain-`fetch` transport with an identifying User-Agent stays for an OAuth client_credentials swap if the registered Reddit app is ever approved (bead `0vb`).
    - GitHub trending Lua (Neovim plugins) → GitHub Search API (`q=topic:neovim-plugin pushed:>last-week sort:stars`)
    - awesome-neovim newly-added → diff `README.md` over the last 7 days via `git log -p`
    - Plugin author RSS feeds → curated list in `pipeline/sources.yml`
