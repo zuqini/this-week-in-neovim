@@ -17,15 +17,15 @@ Context for the Hermes agent working on this repo alongside the owner (zuqini) a
 
 ```bash
 git fetch origin
-git checkout reddit-browser-scrape
+git checkout main && git pull --ff-only
 corepack enable             # pnpm 10.33.2 is pinned in package.json
 pnpm install --frozen-lockfile
 pnpm test && pnpm typecheck && pnpm build   # same gates as CI (.github/workflows/site.yml)
 ```
 
-Node 22 per `.nvmrc` (24 also works). Expect 288 passing tests. `tests/pipeline/reddit-client.test.ts` › "waits 1s between consecutive successful calls" is a known flake under load (bead `nu3`). Re-run it alone before reporting it.
+Node 22 per `.nvmrc` (24 also works). Expect 301 passing tests.
 
-## Current task: verify the Reddit browser transport (branch `reddit-browser-scrape`)
+## Current task: verify the Reddit browser transport (merged to `main`)
 
 ### Why it exists
 
