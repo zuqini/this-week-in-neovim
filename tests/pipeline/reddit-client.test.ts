@@ -127,16 +127,20 @@ describe("reddit client — fetchListing", () => {
   });
 
   it("waits 1s between consecutive successful calls", async () => {
-    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ ok: true }));
-    const sleep = vi.fn().mockResolvedValue(undefined);
-    const client = defaultClient({ fetch: fetchMock, sleep });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ ok: true }));
+      const sleep = vi.fn().mockResolvedValue(undefined);
+      const client = defaultClient({ fetch: fetchMock, sleep });
 
-    await client.fetchListing({ subreddit: "neovim", timeframe: "week", limit: 5 });
-    await client.fetchListing({ subreddit: "neovim", timeframe: "week", limit: 5 });
+      await client.fetchListing({ subreddit: "neovim", timeframe: "week", limit: 5 });
+      await client.fetchListing({ subreddit: "neovim", timeframe: "week", limit: 5 });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const waitedFor1000 = sleep.mock.calls.some((c) => c[0] === 1000);
-    expect(waitedFor1000).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(sleep).toHaveBeenCalledExactlyOnceWith(1000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not sleep before the first call", async () => {
