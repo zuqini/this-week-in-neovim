@@ -3,7 +3,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { scrapeReddit, type ScrapeOptions } from "../src/sources/reddit/scrape.js";
-import type { Timeframe } from "../src/sources/reddit/client.js";
+import {
+  defaultClient,
+  RedditHttpError,
+  type Timeframe,
+} from "../src/sources/reddit/client.js";
+import {
+  DEFAULT_CDP_URL,
+  openBrowserFetch,
+  type BrowserFetchSession,
+} from "../src/sources/reddit/browser.js";
 
 interface CliArgs {
   subreddit: string;
@@ -11,6 +20,7 @@ interface CliArgs {
   limit: number;
   outDir: string;
   withComments: boolean;
+  cdpUrl?: string;
 }
 
 const TIMEFRAMES: readonly Timeframe[] = ["day", "week", "month"] as const;
@@ -42,6 +52,7 @@ function parseArgs(argv: string[]): CliArgs {
   }
   const outDir = flags.get("out-dir") ?? "pipeline/data/raw";
   const withComments = !bools.has("no-comments");
+  const cdpUrl = bools.has("cdp-url") ? DEFAULT_CDP_URL : flags.get("cdp-url");
 
   return {
     subreddit,
@@ -49,6 +60,7 @@ function parseArgs(argv: string[]): CliArgs {
     limit,
     outDir,
     withComments,
+    cdpUrl,
   };
 }
 
@@ -76,11 +88,18 @@ export async function runCli(argv: string[]): Promise<number> {
   };
 
   let result;
+  let session: BrowserFetchSession | undefined;
   try {
-    result = await scrapeReddit(options);
+    if (args.cdpUrl) session = await openBrowserFetch(args.cdpUrl);
+    result = await scrapeReddit(options, defaultClient({ fetch: session?.fetch }));
   } catch (err) {
     process.stderr.write(`scrape-reddit: ${formatErr(err)}\n`);
+    if (err instanceof RedditHttpError && err.status === 403) {
+      process.stderr.write(`scrape-reddit: hint: ${forbiddenHint(args.cdpUrl)}\n`);
+    }
     return 1;
+  } finally {
+    await session?.close();
   }
 
   const dateDir = path.join(args.outDir, utcDate());
@@ -95,6 +114,12 @@ export async function runCli(argv: string[]): Promise<number> {
 
   process.stdout.write(`wrote ${result.items.length} posts → ${outPath}\n`);
   return 0;
+}
+
+function forbiddenHint(cdpUrl: string | undefined): string {
+  return cdpUrl
+    ? `is the Chrome profile at ${cdpUrl} signed into Reddit? Open its window and sign in.`
+    : "Reddit blocks logged-out .json access; re-run with --cdp-url against a signed-in Chrome (`pnpm pipeline:chrome`).";
 }
 
 function formatErr(err: unknown): string {

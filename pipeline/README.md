@@ -16,13 +16,25 @@ pipeline/data/
 
 ### Reddit (`pipeline/src/sources/reddit/`)
 
-Scrapes top posts (and top comments) from a subreddit via Reddit's public JSON endpoint. Output is the shared `RawScrapePayload` envelope `{ source, fetchedAt, params, items }` (see `pipeline/src/types.ts`) where each item is a post projected to 12 fields (snake_case preserved to match Reddit's API) plus `top_comments[]`.
+Scrapes top posts (and top comments) from a subreddit via Reddit's `.json` endpoints, fetched from inside a signed-in Chrome profile (Reddit has returned 403 for logged-out `.json` requests since ~2026-05-30). Output is the shared `RawScrapePayload` envelope `{ source, fetchedAt, params, items }` (see `pipeline/src/types.ts`) where each item is a post projected to 12 fields (snake_case preserved to match Reddit's API) plus `top_comments[]`.
 
 #### Run
 
+One-time setup — launch the dedicated profile and sign into Reddit in the window that opens:
+
 ```bash
-pnpm pipeline:scrape:reddit -- --subreddit=neovim --timeframe=week --limit=50
+pnpm pipeline:chrome    # Chrome with its own profile (~/.config/twin-chrome) + CDP on 127.0.0.1:9222
 ```
+
+Chrome 136+ ignores `--remote-debugging-port` on the default profile, hence the separate one. The profile keeps its cookies, so later runs only need the window running. Override with `TWIN_CDP_PORT`, `TWIN_CHROME_PROFILE`, or `CHROME` (binary path).
+
+Weekly run, with that Chrome open:
+
+```bash
+pnpm pipeline:scrape:reddit -- --cdp-url --subreddit=neovim --timeframe=week --limit=25
+```
+
+The scraper attaches over CDP, opens one tab on `reddit.com/robots.txt` (a static same-origin page), issues same-origin `fetch`es with the profile's session, then closes that tab and disconnects — Chrome itself keeps running. Hermes can attach to the same instance (`/browser connect http://127.0.0.1:9222`).
 
 Flags (all `--key=value`):
 
@@ -33,12 +45,13 @@ Flags (all `--key=value`):
 | `--limit` | `50` | listing size; Reddit caps at 100 |
 | `--out-dir` | `pipeline/data/raw` | date-stamped subdir is created beneath this |
 | `--no-comments` | off | skip the per-post comment fetch (fast iteration) |
+| `--cdp-url` | off | fetch through a signed-in Chrome; bare flag means `http://127.0.0.1:9222`. Without it, plain unauthenticated `fetch` is used (403s today; kept for the OAuth swap, bead `0vb`) |
 
 Writes `<out-dir>/<YYYY-MM-DD>/reddit-<subreddit>.json` (UTC date). Idempotent — re-running the same day overwrites the same file. One stdout line: `wrote N posts → <path>` (English copy; the JSON field is `items`).
 
 #### Env vars
 
-None today. When the registered Reddit OAuth app is approved (see "Reddit OAuth status" below), `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` will be required.
+None. The browser profile carries the session.
 
 #### Output schema
 
@@ -73,23 +86,25 @@ None today. When the registered Reddit OAuth app is approved (see "Reddit OAuth 
 
 #### ToS posture
 
-- 1 request/second pacing is enforced inside the client (see `client.ts`).
-- Identifying `User-Agent` (`this-week-in-neovim/<ver> (<repo url>)`) is load-bearing for unauth access — Reddit will 429 generic UAs.
-- Follows Reddit's [API rules](https://github.com/reddit-archive/reddit/wiki/API): no scraping behind auth, respect rate limits, identify yourself.
+- This automates the owner's own signed-in account. Reddit's User Agreement restricts automated access without consent, and Reddit has said it enforces against logged-in accounts — the owner has accepted the risk of account action. Keep it to one weekly run at personal volume.
+- The browser is a normal Chrome profile: no stealth plugins, fingerprint spoofing, or challenge solving. If Reddit serves HTML instead of JSON (signed out, block page, challenge), the fetch throws and the run fails; a human opens the window and looks.
+- 1 request/second pacing, 429 `Retry-After` honoring, and 5xx backoff are enforced inside the client (see `client.ts`) for both transports.
+- In-browser requests carry Chrome's own User-Agent; the identifying UA applies only to the plain `fetch` transport.
 
 #### Performance
 
-A standard run does `1 + limit` HTTP calls (one listing + one comments fetch per post): at the default `--limit=50` that's 51 calls, roughly 51 seconds at 1 req/sec. Use `--no-comments` for fast iteration during development — drops to a single HTTP call.
+A standard run does `1 + limit` HTTP calls (one listing + one comments fetch per post): at `--limit=25` that's 26 calls, roughly 26 seconds at 1 req/sec (the default `--limit=50` doubles it). Use `--no-comments` for fast iteration during development — drops to a single HTTP call.
 
 #### Known limits
 
-- Unauthenticated Reddit API has a low rate ceiling and aggressive UA filtering.
+- Requires the CDP Chrome to be running and signed in; a headless/CI host needs the same profile available.
+- Anyone on the machine who can reach the CDP port controls that browser, Reddit session included — it binds to 127.0.0.1 only.
 - No backfill beyond Reddit's listing window (~1000 posts max regardless of `t=`).
 - "more comments" expansion stubs are not followed; only depth-1 comments returned in the first listing are considered.
 
 #### Reddit OAuth status
 
-Reddit OAuth app registered 2026-05-04, currently pending review. Once approved, the unauth client will be swapped for an OAuth `client_credentials` flow (separate issue) that lifts the rate ceiling and removes UA fragility.
+Reddit OAuth app registered 2026-05-04; Reddit never responded. Reddit stops accepting new public-API requests on 2026-10-31 and retires the public API in March 2027, so approval is unlikely. If it ever lands, bead `0vb` swaps the plain-`fetch` transport for OAuth.
 
 #### Note on `pipeline/data/` and traceability
 

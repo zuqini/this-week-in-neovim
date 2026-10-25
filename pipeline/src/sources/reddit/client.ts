@@ -119,7 +119,17 @@ function parseRetryAfter(value: string | null): number | null {
   return Math.round(seconds * 1000);
 }
 
-async function buildHttpError(response: Response, status: number): Promise<Error> {
+export class RedditHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "RedditHttpError";
+  }
+}
+
+async function buildHttpError(response: Response, status: number): Promise<RedditHttpError> {
   let bodyExcerpt = "";
   try {
     const text = await response.text();
@@ -127,5 +137,5 @@ async function buildHttpError(response: Response, status: number): Promise<Error
   } catch {
     bodyExcerpt = "<unreadable>";
   }
-  return new Error(`Reddit request failed: ${status} — ${bodyExcerpt}`);
+  return new RedditHttpError(status, `Reddit request failed: ${status} — ${bodyExcerpt}`);
 }
