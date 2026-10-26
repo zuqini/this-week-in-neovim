@@ -1,16 +1,22 @@
 # Hermes collaborator notes
 
-Context for the Hermes agent working on this repo alongside the owner (zuqini) and Claude Code. Read this before `AGENTS.md`. Where they disagree, this file wins for your work.
+Context for the Hermes agent working on this repo alongside the owner (zuqini) and Claude Code. This is the only context file Hermes loads here (`HERMES.md` takes precedence over `AGENTS.md`/`CLAUDE.md`), so everything you need is in this file. Those two are beads boilerplate written for the owner's sessions; where they disagree, this file wins for your work.
 
 ## Ground rules
 
-- **Never push to `main`, never force-push, never merge.** Work on a branch; the owner merges. `AGENTS.md`/`CLAUDE.md` say "work is not done until `git push` succeeds". That is beads boilerplate for the owner's sessions. For you it means pushing *your branch* when asked, nothing more.
-- **Beads (`bd`) is read-only for you.** `bd list`, `bd show <id>`, `bd ready` are fine. Writes currently fail: the database is on schema v32 with 21 pending migrations to v53. **Do not run `bd migrate`** (or `BD_ALLOW_REMOTE_MIGRATE=1 …`). Only one clone may migrate the shared remote, and the owner picks which. Put follow-ups in your report instead.
+- **Never push to `main`, never force-push, never merge.** Work on a branch; the owner merges. `AGENTS.md`/`CLAUDE.md` say "work is not done until `git push` succeeds". That is beads boilerplate for the owner's sessions. For you it means pushing *your branch* when asked, nothing more. The `weekly-issue` skill is standing permission to push its `weekly/<date>` branch and open that PR; it never merges either.
+- **Beads (`bd`).** The shared database lives on the GitHub remote (`refs/dolt/data`), so your push access covers it.
+  - Once per clone: `bd bootstrap --yes`, then `bd list` to confirm. **Never run `bd migrate`** (or `BD_ALLOW_REMOTE_MIGRATE=1 …`); the owner's clone migrates the shared remote.
+  - Read freely: `bd list`, `bd show <id>`, `bd ready`.
+  - File follow-ups as beads instead of only listing them in a report: `bd dolt pull` first, then `bd create --title "…" -t bug|feature|task -p <0-4> -l hermes -d "…"` (add `--deps discovered-from:<id>` when it came out of another bead), then `bd dolt push`. Never `bd dolt push --force`. If the push is rejected, `bd dolt pull` and push once more; on a conflict, stop and report.
+  - Don't close, claim, or edit the owner's beads unless asked.
+  - List the IDs you filed in your report.
 - **Reddit etiquette (load-bearing).** The scraper drives the owner's own signed-in Reddit account:
   - Use the normal Chrome profile only: no stealth plugins, no User-Agent or fingerprint spoofing, no CAPTCHA or challenge solving.
-  - Never type Reddit credentials. If the profile is signed out, stop and tell the owner.
-  - Keep volume low: tests use `--limit=3` first, then at most one `--limit=25` run. The production cadence is one run per week.
-- **Don't commit scrape output.** `pipeline/data/` is gitignored on purpose.
+  - Never type Reddit credentials. If the profile is signed out, tell the owner (in the weekly loop, carry on without Reddit).
+  - Keep volume low: tests use `--limit=3` first, then at most one `--limit=25` run. The production cadence is one `pnpm pipeline:week` per week, plus at most one re-run after a timeout.
+- **Don't commit scrape output.** `pipeline/data/` is gitignored on purpose. One exception: a weekly issue PR force-adds that run's `pipeline/data/enriched/<date>/*.json` (the judge and the audit trail need it). Never commit `pipeline/data/raw/` or `pipeline/data/runs/`.
+- **Use non-interactive commands.** `cp`/`mv`/`rm` may be aliased to `-i` and hang waiting for input: use `cp -f`, `mv -f`, `rm -f` / `rm -rf`; `ssh`/`scp` with `-o BatchMode=yes`.
 - Read `.claude/review-decisions.md` before suggesting refactors. It lists tradeoffs that were already accepted.
 
 ## Setup
@@ -20,12 +26,33 @@ git fetch origin
 git checkout main && git pull --ff-only
 corepack enable             # pnpm 10.33.2 is pinned in package.json
 pnpm install --frozen-lockfile
+bd bootstrap --yes          # once per clone (never `bd migrate`)
+bd list                     # beads reachable
 pnpm test && pnpm typecheck && pnpm build   # same gates as CI (.github/workflows/site.yml)
 ```
 
-Node 22 per `.nvmrc` (24 also works). Expect 301 passing tests.
+Node 22 per `.nvmrc` (24 also works). Expect 348 passing tests.
 
-## Current task: verify the Reddit browser transport (merged to `main`)
+## Weekly loop
+
+Each week you draft the issue and open its PR; the owner judges and merges.
+
+- **Runbook:** the `weekly-issue` skill (`.hermes/skills/weekly-issue/SKILL.md`). It covers preflight, `pnpm pipeline:week`, drafting, the programmatic eval, pushing `weekly/<date>`, the PR, the report, and the failure table.
+- **Scrape + enrich:** `pnpm pipeline:week` runs every scraper and the enricher for today's UTC date, keeps going when one source fails, and writes `pipeline/data/runs/<date>.json`. Exit `0` all ok, `2` some source failed, `1` enrich failed. See `pipeline/README.md`.
+- **Faithfulness judge:** runs on the owner's machine via `pnpm pipeline:judge:pr <n>`, which reads your PR's draft and enriched JSON and posts the verdict as a PR comment. You never need `ANTHROPIC_API_KEY`.
+- **Caveat:** the signed-in `pnpm pipeline:chrome` window must be running when the run starts. If the Reddit session has expired, the run reports it; notify the owner and ship the issue without Reddit (details in the skill).
+
+One-time setup on the Hermes host (`<clone>` = absolute path of this clone):
+
+```bash
+hermes skills trust <clone>        # allow repo-local skills from .hermes/skills/
+hermes gateway install             # cron jobs only run while the gateway is up
+hermes cron create "0 6 * * 1" "Run the weekly-issue skill" --skill weekly-issue --workdir <clone>
+```
+
+The schedule must fire on Monday in UTC (the issue date is the UTC run date). Hermes evaluates cron in its configured timezone (`HERMES_TIMEZONE`, else `timezone` in `~/.hermes/config.yaml`, else the host's local time), not UTC: `0 6 * * 1` is Monday UTC anywhere from UTC−12 to UTC+6; further east, set the hour to at least your UTC offset (e.g. `0 9 * * 1` at UTC+9). Keep the signed-in `pnpm pipeline:chrome` window running on that host.
+
+## Current task: verify the Reddit browser transport (merged to `main`, bead `fwa`)
 
 ### Why it exists
 
@@ -110,10 +137,6 @@ Keep the report factual: say what you ran and saw, not what you expected.
 
 - **What it is:** a static Next.js blog reviving *This Week in Neovim*. A weekly pipeline does **scrape → enrich → draft (LLM) → eval → PR**, and a human reviews and merges. Specs live in `TASK.md` and `pipeline/README.md`; the backlog is `bd list`; `next_steps.md` points to what's next.
 - **Faithfulness is the main rule.** Drafts may only state what the enriched JSON contains; every bullet cites `[^sN]`, and `pnpm pipeline:eval:draft` enforces it. If you research online, don't write facts from your browsing into a draft. Add the URLs you find as a source so they go through `pnpm pipeline:enrich:links`, and cite the enriched content. Bullets cited only to your browsing will fail eval.
-- **Drafter contract:** `pipeline/prompts/draft.md`. **Eval:** `pnpm pipeline:eval:draft <mdx> [--faithfulness --enriched-dir …]`. The faithfulness judge defaults to `claude-sonnet-4-6` and needs `ANTHROPIC_API_KEY`. `pipeline/bin/prep-faithfulness.ts` (untracked, owner's WIP) emits judge prompts as JSONL for harness-side judging.
-- **Known gaps** (likely future asks):
-  - one `pipeline:week` entry point that runs every scraper and the enricher and tolerates per-source failures
-  - a Hermes runbook skill for the weekly loop
-  - a `runtime/doc/news.txt` diff scraper for `## Neovim core` (the releases scraper only sees `nightly`, whose notes are boilerplate)
-  - the source beads `jzg`, `q94`, `hmn`, `8gz`, `ei7`, `40l`, `4kv`
-- **Weekly-run caveat:** the signed-in Chrome must be running when the cron fires. When the Reddit session expires, the scrape fails loudly. Notify the owner and continue the issue without Reddit; don't retry in a loop.
+- **Drafter contract:** `pipeline/prompts/draft.md`. **Eval:** `pnpm pipeline:eval:draft <mdx>` (citations, word count, links). You run it without `--faithfulness`; the LLM faithfulness judge runs on the owner's machine (`pnpm pipeline:judge:pr`).
+- **Known gaps:** the backlog lives in beads (`bd ready`, `bd list --label hermes`). Source coverage per section is the table in `next_steps.md`. The weekly loop was `vrn`/`22k`/`9ko`; the `runtime/doc/news.txt` scraper for `## Neovim core` is `zn7`.
+- **Weekly-run caveat:** see the `weekly-issue` skill (Reddit down → notify the owner, continue without it, no retry loop).
