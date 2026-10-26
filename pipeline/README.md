@@ -10,7 +10,49 @@ Outputs live under `pipeline/data/` (gitignored):
 pipeline/data/
   raw/<YYYY-MM-DD>/<source>.json       # one file per scraper
   enriched/<YYYY-MM-DD>/<source>.json  # raw items + linkedContent
+  runs/<YYYY-MM-DD>.json               # pipeline:week run summary
 ```
+
+## Weekly run (`pipeline:week`)
+
+```bash
+pnpm pipeline:week [--data-dir=<dir>]
+```
+
+One entry point for the scrape + enrich stages. `--data-dir` defaults to `pipeline/data`; there are no other flags. `D` is the UTC date when the run starts. The steps run in-process, one after another:
+
+| Step | Call | Expected output |
+|---|---|---|
+| `github-releases` | `scrape-github-releases --out-dir=<data>/raw --out-name=github-neovim-neovim-releases.json` | `raw/<D>/github-neovim-neovim-releases.json` |
+| `awesome-neovim` | `scrape-awesome-neovim --out-dir=<data>/raw --out-name=awesome-neovim-additions.json` | `raw/<D>/awesome-neovim-additions.json` |
+| `reddit` | `scrape-reddit --subreddit=neovim --limit=25 --cdp-url --out-dir=<data>/raw` | `raw/<D>/reddit-neovim.json` |
+| `enrich` | `enrich-links --date <D> --root <data>` | `enriched/<D>/` |
+
+A failing scraper doesn't stop the run; enrich always runs over whatever landed in `raw/<D>/`. A scraper that exits 0 counts as failed if the file at its expected path is missing (`expected output … not found`) or older than the step's start (`… predates this run (stale same-day file …)`): the scrapers stamp their own UTC date when they write, so a midnight rollover sends the output elsewhere. `week` passes each output name explicitly (Reddit has no `--out-name`, so it pins `--subreddit` instead). A step that throws counts as exit 1, keeping whatever it printed before the throw. Each step's stdout/stderr still streams to the terminal.
+
+The summary goes to `<data>/runs/<D>.json`, outside `raw/<D>/` and `enriched/<D>/` because enrich and eval read every `*.json` in those:
+
+```json
+{
+  "date": "2026-11-02",
+  "startedAt": "2026-11-02T06:00:00.000Z",
+  "finishedAt": "2026-11-02T06:01:10.000Z",
+  "ok": false,
+  "steps": [
+    { "name": "reddit", "ok": false, "exitCode": 1, "durationMs": 1200, "summary": null,
+      "error": "scrape-reddit: Reddit request failed: 403 …\nscrape-reddit: hint: …" }
+  ],
+  "rawFiles": ["awesome-neovim-additions.json", "github-neovim-neovim-releases.json"]
+}
+```
+
+`summary` is the step's last non-empty stdout line (or `null`); `error` appears only on failed steps and holds the last ≤20 non-empty stderr lines (a throwing step's ends with `threw: <message>`). `rawFiles` lists `raw/<D>/` after the run, so a stale file from an earlier same-day run shows up. One stdout line at the end:
+
+```
+pipeline:week 2026-11-02: ok github-releases, awesome-neovim, enrich; FAILED reddit → pipeline/data/runs/2026-11-02.json
+```
+
+Exit codes: `0` every step ok; `2` one or more scrapers failed but enrich succeeded; `1` enrich failed (including "no .json files" when every scraper failed), a bad argument, or the summary couldn't be written.
 
 ## Sources
 

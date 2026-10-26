@@ -14,7 +14,8 @@
     "pipeline:eval:draft": "tsx pipeline/bin/eval-draft.ts",
     "pipeline:scrape:awesome-neovim": "tsx pipeline/bin/scrape-awesome-neovim.ts",
     "pipeline:scrape:github-releases": "tsx pipeline/bin/scrape-github-releases.ts",
-    "pipeline:scrape:reddit": "tsx pipeline/bin/scrape-reddit.ts"
+    "pipeline:scrape:reddit": "tsx pipeline/bin/scrape-reddit.ts",
+    "pipeline:week": "tsx pipeline/bin/week.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
