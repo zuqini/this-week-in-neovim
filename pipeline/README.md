@@ -156,7 +156,7 @@ Reddit OAuth app registered 2026-05-04; Reddit never responded. Reddit stops acc
 
 #### Note on `pipeline/data/` and traceability
 
-`pipeline/data/` is gitignored (see `.gitignore`). `TASK.md` originally described raw artifacts as "committed for traceability"; that intent is deferred to whenever GH Actions starts running scrapes. During harness-driven development, **whether to commit a given run's raw output is a per-run editorial choice** — manually `git add -f pipeline/data/raw/<date>/reddit-<sub>.json` if you want it in the PR. Don't flip the gitignore default; it would create churn from local scrape runs.
+`pipeline/data/` is gitignored (see `.gitignore`). `TASK.md` originally described raw artifacts as "committed for traceability"; that intent is deferred to whenever GH Actions starts running scrapes. Weekly issue PRs (`weekly/<date>`, opened by the Hermes `weekly-issue` skill) put the draft at `content/issues/<date>.mdx` and force-add that run's `pipeline/data/enriched/<date>/*.json`, so the faithfulness judge can read exactly what the drafter saw and main keeps it as the audit trail. `raw/` and `runs/` are never committed. Outside that, committing a run's raw output is a per-run editorial choice: manually `git add -f pipeline/data/raw/<date>/reddit-<sub>.json` if you want it in the PR. Don't flip the gitignore default; it would create churn from local scrape runs.
 
 ### GitHub releases (`pipeline/src/sources/github/`)
 
@@ -240,6 +240,8 @@ Reads `pipeline/data/raw/<date>/*.json`, writes `pipeline/data/enriched/<date>/<
 
 No code lives in this repo for the draft stage — it is executed by an external LLM harness that substitutes `{{ISSUE_NUMBER}}`, `{{DATE}}`, and `{{ENRICHED_JSON}}` (the parsed contents of `pipeline/data/enriched/<DATE>/`) into the prompt and emits an MDX file. The prompt is the contract. It encodes the frontmatter/citation schema, the faithfulness rules the next stage will enforce, and the editorial voice.
 
+On a weekly issue PR the MDX goes straight to `content/issues/<DATE>.mdx` with no `draft` flag: the unmerged PR is the draft gate, and merging publishes it. A `<DATE>.draft.mdx` name would break the build, because `SLUG_SHAPE` rejects the `.`. The PR also force-adds the enriched JSON it was drafted from (see the traceability note under Reddit).
+
 The faithfulness rule is load-bearing: a source is citable iff its `sources[].url` keys into one of four places — a top-level `item.linkedContent.content` (kinds `github-readme`/`html-article`), a github-release `item.body`, a Reddit self-post `item.selftext` keyed by `item.permalink`, or a `linkedContentExtras[i].content`. `loadSourceContent` in `pipeline/bin/eval-draft.ts` is the code-side mirror — keep both in sync.
 
 ## Eval (`pipeline/bin/eval-draft.ts` + `pipeline/src/eval/`)
@@ -251,3 +253,22 @@ pnpm pipeline:eval:draft <path-to-mdx> \
 ```
 
 Parses frontmatter against `lib/issues/schema.ts`, runs `validateCitations` (`lib/citations.ts`), HEADs every `sources[].url` (with `Retry-After` honoring), and counts words within `[100, 10000]`. With `--faithfulness`, each `(claim, citation)` pair is judged by an LLM against the enriched source text (default model `claude-sonnet-4-6`); usage is printed on stderr. Exits non-zero on any failure.
+
+## Faithfulness judge on PRs (`pipeline:judge:pr`)
+
+```bash
+pnpm pipeline:judge:pr <pr-number> [--no-comment]
+```
+
+Runs `eval-draft --faithfulness` against a weekly issue PR from the owner's machine, the only place `ANTHROPIC_API_KEY` lives. The PR's branch is treated as untrusted data:
+
+- The judge code is the current checkout (normally `main`), never the PR branch. If the PR head is already an ancestor of `HEAD`, it refuses to run.
+- It looks the PR up with `gh pr view` and only continues for an open PR whose head branch is `weekly/*`. It then fetches `refs/pull/<n>/head` and pins that SHA (if it doesn't match gh's `headRefOid`, the head moved: re-run).
+- From `git diff origin/<base>...<sha>` it requires exactly one added/modified `content/issues/<D>.mdx`. Every change under `pipeline/data/enriched/` must be an **addition** inside `pipeline/data/enriched/<D>/` (the draft's own date), and that dir must not already exist on `origin/<base>`, so a PR can't rewrite evidence that's already on main. Every entry in the dir must be a plain `100644` blob named `*.json` (no subdirs, symlinks, or dotfiles), totalling at most 5 MB.
+- The files are copied into a temp dir with `git cat-file blob` (no checkout, no textconv/filters), and trusted `eval-draft` runs in-process with `--skip-links --faithfulness --enriched-dir <tmp>/enriched`. `--skip-links` because Hermes already checked the links, and fetching PR-chosen URLs from this machine would let a PR probe local services.
+- These checks pin *where* the evidence is, not *where it came from*: the enriched JSON is whatever the PR author committed, and the judge can't tell it apart from a real `pipeline:week` run. The comment says so, and human review of the PR stays the gate.
+- The only commands it runs are `git fetch/rev-parse/merge-base/diff/ls-tree/cat-file` and `gh pr view/comment`. Nothing from the PR is installed or executed.
+
+It posts one `gh pr comment`: `### Faithfulness judge: PASS|FAIL`, the PR head SHA, draft path, enriched dir and file count, the judge-code SHA, a line noting that the evidence's provenance isn't independently verified, and the eval output in a fenced block (truncated past 60,000 characters to stay under GitHub's comment limit). `--no-comment` prints that comment to stdout instead.
+
+Exit codes: `0` eval passed (comment posted); `1` eval failed, including API errors inside eval-draft (comment still posted); `2` bad arguments, missing `ANTHROPIC_API_KEY`, PR not open or not `weekly/*`, head moved, a guard tripped, or a git/gh failure (nothing posted).
